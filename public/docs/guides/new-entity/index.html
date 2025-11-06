@@ -1,0 +1,480 @@
+<!DOCTYPE html>
+<html lang="ja-jp" dir="ltr">
+<head>
+  <!--
+Made with Book Theme
+https://github.com/alex-shpak/hugo-book
+-->
+
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="description" content="このガイドでは新しい Entity を engine/entities/ に追加し、Game へ組み込むまでの流れを説明します。
+1. クラス定義# engine/entities/MyEntity.ts を作成。 Entity を継承し、MyEntitySnapshot 型を定義。 コンストラクタで tickRate や初期座標を渡す。 _process(elapsed) に 1 tick 分のロジックを書く。 import { Entity, EntitySnapshot } from &#39;./Entity&#39;; type MyEntitySnapshot = EntitySnapshot &amp; { hp: number }; export class MyEntity extends Entity&lt;MyEntitySnapshot&gt; { private hp = 100; protected _process() { // 例: 徐々に減衰 this.hp = Math.max(0, this.hp - 1); } getSnapshot() { const { x, y } = this.getPosition(); return { id: this.id, x, y, hp: this.hp }; } }2. World へ登録# const entity = new MyEntity({ tickRate: 1 / 30, x: 50, y: 120 }); game.addEntity(entity); Game.addEntity が World 経由で _ready() を一度だけ呼びます。 画面遷移やアンマウント時は game.removeEntity(entity.id) を必ず実行。 3. 描画スナップショットの更新# Skia や React 側が必要とする最小情報だけを getSnapshot() に詰めます。大きなオブジェクトを渡すと render 毎にシリアライズコストが掛かるため、描画に不要なロジック用フィールドは含めないでください。
+">
+<meta name="theme-color" media="(prefers-color-scheme: light)" content="#ffffff">
+<meta name="theme-color" media="(prefers-color-scheme: dark)" content="#343a40">
+<meta name="color-scheme" content="light dark"><meta property="og:url" content="https://codigrowa-docs.local/docs/guides/new-entity/">
+  <meta property="og:site_name" content="Codigrowa Docs">
+  <meta property="og:title" content="Entity 実装ガイド">
+  <meta property="og:description" content="このガイドでは新しい Entity を engine/entities/ に追加し、Game へ組み込むまでの流れを説明します。
+1. クラス定義# engine/entities/MyEntity.ts を作成。 Entity を継承し、MyEntitySnapshot 型を定義。 コンストラクタで tickRate や初期座標を渡す。 _process(elapsed) に 1 tick 分のロジックを書く。 import { Entity, EntitySnapshot } from &#39;./Entity&#39;; type MyEntitySnapshot = EntitySnapshot &amp; { hp: number }; export class MyEntity extends Entity&lt;MyEntitySnapshot&gt; { private hp = 100; protected _process() { // 例: 徐々に減衰 this.hp = Math.max(0, this.hp - 1); } getSnapshot() { const { x, y } = this.getPosition(); return { id: this.id, x, y, hp: this.hp }; } }2. World へ登録# const entity = new MyEntity({ tickRate: 1 / 30, x: 50, y: 120 }); game.addEntity(entity); Game.addEntity が World 経由で _ready() を一度だけ呼びます。 画面遷移やアンマウント時は game.removeEntity(entity.id) を必ず実行。 3. 描画スナップショットの更新# Skia や React 側が必要とする最小情報だけを getSnapshot() に詰めます。大きなオブジェクトを渡すと render 毎にシリアライズコストが掛かるため、描画に不要なロジック用フィールドは含めないでください。">
+  <meta property="og:locale" content="ja_jp">
+  <meta property="og:type" content="article">
+    <meta property="article:section" content="docs">
+
+
+  <meta itemprop="name" content="Entity 実装ガイド">
+  <meta itemprop="description" content="このガイドでは新しい Entity を engine/entities/ に追加し、Game へ組み込むまでの流れを説明します。
+1. クラス定義# engine/entities/MyEntity.ts を作成。 Entity を継承し、MyEntitySnapshot 型を定義。 コンストラクタで tickRate や初期座標を渡す。 _process(elapsed) に 1 tick 分のロジックを書く。 import { Entity, EntitySnapshot } from &#39;./Entity&#39;; type MyEntitySnapshot = EntitySnapshot &amp; { hp: number }; export class MyEntity extends Entity&lt;MyEntitySnapshot&gt; { private hp = 100; protected _process() { // 例: 徐々に減衰 this.hp = Math.max(0, this.hp - 1); } getSnapshot() { const { x, y } = this.getPosition(); return { id: this.id, x, y, hp: this.hp }; } }2. World へ登録# const entity = new MyEntity({ tickRate: 1 / 30, x: 50, y: 120 }); game.addEntity(entity); Game.addEntity が World 経由で _ready() を一度だけ呼びます。 画面遷移やアンマウント時は game.removeEntity(entity.id) を必ず実行。 3. 描画スナップショットの更新# Skia や React 側が必要とする最小情報だけを getSnapshot() に詰めます。大きなオブジェクトを渡すと render 毎にシリアライズコストが掛かるため、描画に不要なロジック用フィールドは含めないでください。">
+  <meta itemprop="wordCount" content="154">
+
+<title>Entity 実装ガイド | Codigrowa Docs</title>
+<link rel="icon" href="/favicon.png" >
+<link rel="manifest" href="/manifest.json">
+<link rel="canonical" href="https://codigrowa-docs.local/docs/guides/new-entity/">
+<link rel="stylesheet" href="/book.min.6970156cec683193d93c9c4edaf0d56574e4361df2e0c1be4f697ae81c3ba55f.css" integrity="sha256-aXAVbOxoMZPZPJxO2vDVZXTkNh3y4MG&#43;T2l66Bw7pV8=" crossorigin="anonymous">
+
+
+  <script defer src="/fuse.min.js"></script>
+  <script defer src="/ja.search.min.975e4962eb4d2d81886c56376e32a5806ffd36c6119d56f2da6c31af2a847378.js" integrity="sha256-l15JYutNLYGIbFY3bjKlgG/9NsYRnVby2mwxryqEc3g=" crossorigin="anonymous"></script>
+
+
+
+  
+</head>
+<body dir="ltr" class="book-kind-page book-type-docs">
+  <input type="checkbox" class="hidden toggle" id="menu-control" />
+  <input type="checkbox" class="hidden toggle" id="toc-control" />
+  <main class="container flex">
+    
+<aside class="book-menu">
+  <div class="book-menu-content">
+    
+  <nav>
+<h2 class="book-brand">
+  <a class="flex align-center" href="/"><span>Codigrowa Docs</span>
+  </a>
+</h2>
+
+
+<div class="book-search hidden">
+  <input id="book-search-input" type="text" 
+    placeholder="検索"
+    aria-label="検索"
+    maxlength="64" data-hotkeys="s/" />
+  <div class="book-search-spinner hidden"></div>
+  <ul id="book-search-results"></ul>
+</div>
+<script>document.querySelector(".book-search").classList.remove("hidden")</script>
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+  <ul>
+    
+      
+        <li>
+          
+  
+  
+
+  
+    <a href="/docs/runtime/" class="">
+      ランタイム</a>
+  
+
+          
+  <ul>
+    
+      
+        <li>
+          
+  
+  
+
+  
+    <a href="/docs/runtime/architecture/" class="">
+      アーキテクチャ概観</a>
+  
+
+        </li>
+      
+    
+      
+        <li>
+          
+  
+  
+
+  
+    <a href="/docs/runtime/game/" class="">
+      Game クラス</a>
+  
+
+        </li>
+      
+    
+      
+        <li>
+          
+  
+  
+
+  
+    <a href="/docs/runtime/world-entity/" class="">
+      World &amp; Entity</a>
+  
+
+        </li>
+      
+    
+      
+        <li>
+          
+  
+  
+
+  
+    <a href="/docs/runtime/scheduler/" class="">
+      Scheduler</a>
+  
+
+        </li>
+      
+    
+      
+        <li>
+          
+  
+  
+
+  
+    <a href="/docs/runtime/game-loop/" class="">
+      GameLoop と状態共有</a>
+  
+
+        </li>
+      
+    
+  </ul>
+
+        </li>
+      
+    
+      
+        <li>
+          
+  
+  
+
+  
+    <a href="/docs/rendering/" class="">
+      Renderer</a>
+  
+
+          
+  <ul>
+    
+      
+        <li>
+          
+  
+  
+
+  
+    <a href="/docs/rendering/game-canvas/" class="">
+      GameCanvas / Renderer</a>
+  
+
+        </li>
+      
+    
+  </ul>
+
+        </li>
+      
+    
+      
+        <li>
+          
+  
+  
+
+  
+    <a href="/docs/guides/" class="">
+      ガイド</a>
+  
+
+          
+  <ul>
+    
+      
+        <li>
+          
+  
+  
+
+  
+    <a href="/docs/guides/new-entity/" class="active">
+      Entity 実装ガイド</a>
+  
+
+        </li>
+      
+    
+      
+        <li>
+          
+  
+  
+
+  
+    <a href="/docs/guides/debugging/" class="">
+      デバッグ &amp; 運用</a>
+  
+
+        </li>
+      
+    
+  </ul>
+
+        </li>
+      
+    
+  </ul>
+
+
+
+
+
+
+
+
+
+
+
+
+
+</nav>
+
+
+
+
+  <script>(function(){var e=document.querySelector("aside .book-menu-content");addEventListener("beforeunload",function(){localStorage.setItem("menu.scrollTop",e.scrollTop)}),e.scrollTop=localStorage.getItem("menu.scrollTop")})()</script>
+
+
+
+  </div>
+</aside>
+ 
+
+    <div class="book-page">
+      <header class="book-header hidden">
+        
+  <div class="flex align-center justify-between">
+  <label for="menu-control">
+    <img src="/icons/menu.svg" class="book-icon" alt="Menu" />
+  </label>
+
+  <h3>Entity 実装ガイド</h3>
+
+  <label for="toc-control">
+    
+    <img src="/icons/toc.svg" class="book-icon" alt="Table of Contents" />
+    
+  </label>
+</div>
+
+
+  
+  <aside class="hidden">
+    
+  
+<nav id="TableOfContents">
+  <ul>
+    <li><a href="#1-クラス定義">1. クラス定義</a></li>
+    <li><a href="#2-world-へ登録">2. World へ登録</a></li>
+    <li><a href="#3-描画スナップショットの更新">3. 描画スナップショットの更新</a></li>
+    <li><a href="#4-scheduler--signal-連携">4. Scheduler / Signal 連携</a></li>
+    <li><a href="#5-デバッグ-tips">5. デバッグ Tips</a></li>
+  </ul>
+</nav>
+
+
+
+  </aside>
+  
+ 
+      </header>
+
+      
+      
+  <article class="markdown book-article"><p>このガイドでは新しい Entity を <code>engine/entities/</code> に追加し、Game へ組み込むまでの流れを説明します。</p>
+<h2 id="1-クラス定義">1. クラス定義<a class="anchor" href="#1-%e3%82%af%e3%83%a9%e3%82%b9%e5%ae%9a%e7%be%a9">#</a></h2>
+<ol>
+<li><code>engine/entities/MyEntity.ts</code> を作成。</li>
+<li><code>Entity</code> を継承し、<code>MyEntitySnapshot</code> 型を定義。</li>
+<li>コンストラクタで <code>tickRate</code> や初期座標を渡す。</li>
+<li><code>_process(elapsed)</code> に 1 tick 分のロジックを書く。</li>
+</ol>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-ts" data-lang="ts"><span style="display:flex;"><span><span style="color:#66d9ef">import</span> { <span style="color:#a6e22e">Entity</span>, <span style="color:#a6e22e">EntitySnapshot</span> } <span style="color:#66d9ef">from</span> <span style="color:#e6db74">&#39;./Entity&#39;</span>;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">type</span> <span style="color:#a6e22e">MyEntitySnapshot</span> <span style="color:#f92672">=</span> <span style="color:#a6e22e">EntitySnapshot</span> <span style="color:#f92672">&amp;</span> { <span style="color:#a6e22e">hp</span>: <span style="color:#66d9ef">number</span> };
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">export</span> <span style="color:#66d9ef">class</span> <span style="color:#a6e22e">MyEntity</span> <span style="color:#66d9ef">extends</span> <span style="color:#a6e22e">Entity</span>&lt;<span style="color:#f92672">MyEntitySnapshot</span>&gt; {
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">private</span> <span style="color:#a6e22e">hp</span> <span style="color:#f92672">=</span> <span style="color:#ae81ff">100</span>;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">protected</span> <span style="color:#a6e22e">_process() {</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#75715e">// 例: 徐々に減衰
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>    <span style="color:#66d9ef">this</span>.<span style="color:#a6e22e">hp</span> <span style="color:#f92672">=</span> Math.<span style="color:#a6e22e">max</span>(<span style="color:#ae81ff">0</span>, <span style="color:#66d9ef">this</span>.<span style="color:#a6e22e">hp</span> <span style="color:#f92672">-</span> <span style="color:#ae81ff">1</span>);
+</span></span><span style="display:flex;"><span>  }
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  <span style="color:#a6e22e">getSnapshot() {</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">const</span> { <span style="color:#a6e22e">x</span>, <span style="color:#a6e22e">y</span> } <span style="color:#f92672">=</span> <span style="color:#66d9ef">this</span>.<span style="color:#a6e22e">getPosition</span>();
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">return</span> { <span style="color:#a6e22e">id</span>: <span style="color:#66d9ef">this.id</span>, <span style="color:#a6e22e">x</span>, <span style="color:#a6e22e">y</span>, <span style="color:#a6e22e">hp</span>: <span style="color:#66d9ef">this.hp</span> };
+</span></span><span style="display:flex;"><span>  }
+</span></span><span style="display:flex;"><span>}</span></span></code></pre></div><h2 id="2-world-へ登録">2. World へ登録<a class="anchor" href="#2-world-%e3%81%b8%e7%99%bb%e9%8c%b2">#</a></h2>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-ts" data-lang="ts"><span style="display:flex;"><span><span style="color:#66d9ef">const</span> <span style="color:#a6e22e">entity</span> <span style="color:#f92672">=</span> <span style="color:#66d9ef">new</span> <span style="color:#a6e22e">MyEntity</span>({ <span style="color:#a6e22e">tickRate</span>: <span style="color:#66d9ef">1</span> <span style="color:#f92672">/</span> <span style="color:#ae81ff">30</span>, <span style="color:#a6e22e">x</span>: <span style="color:#66d9ef">50</span>, <span style="color:#a6e22e">y</span>: <span style="color:#66d9ef">120</span> });
+</span></span><span style="display:flex;"><span><span style="color:#a6e22e">game</span>.<span style="color:#a6e22e">addEntity</span>(<span style="color:#a6e22e">entity</span>);</span></span></code></pre></div><ul>
+<li><code>Game.addEntity</code> が World 経由で <code>_ready()</code> を一度だけ呼びます。</li>
+<li>画面遷移やアンマウント時は <code>game.removeEntity(entity.id)</code> を必ず実行。</li>
+</ul>
+<h2 id="3-描画スナップショットの更新">3. 描画スナップショットの更新<a class="anchor" href="#3-%e6%8f%8f%e7%94%bb%e3%82%b9%e3%83%8a%e3%83%83%e3%83%97%e3%82%b7%e3%83%a7%e3%83%83%e3%83%88%e3%81%ae%e6%9b%b4%e6%96%b0">#</a></h2>
+<p>Skia や React 側が必要とする最小情報だけを <code>getSnapshot()</code> に詰めます。大きなオブジェクトを渡すと render 毎にシリアライズコストが掛かるため、描画に不要なロジック用フィールドは含めないでください。</p>
+<h2 id="4-scheduler--signal-連携">4. Scheduler / Signal 連携<a class="anchor" href="#4-scheduler--signal-%e9%80%a3%e6%90%ba">#</a></h2>
+<ul>
+<li>時間ベースの処理が必要なら、Game をコンストラクタで受け取り <code>this.game.wait()</code> を <code>_ready()</code> で設定。</li>
+<li>今後追加予定の Signal システムとも疎結合にできるよう、World への参照が必要な場合は <code>_ready()</code> の中で安全にアクセスしましょう。</li>
+</ul>
+<h2 id="5-デバッグ-tips">5. デバッグ Tips<a class="anchor" href="#5-%e3%83%87%e3%83%90%e3%83%83%e3%82%b0-tips">#</a></h2>
+<ul>
+<li><code>__DEV__</code> フラグ下では <code>Game.update</code> が <code>console.log</code> を出すので挙動確認に有効。</li>
+<li><code>Game.onRender</code> に HUD をぶら下げて <code>EntitySnapshot</code> をそのまま表示すると、位置や内部値を即座に確認できます。</li>
+</ul>
+<p>これで他の開発者も <code>Entity</code> を追加するだけで GameLoop に乗り、Renderer が自動的に新スナップショットを描画してくれるようになります。</p>
+</article>
+ 
+      
+
+      <footer class="book-footer">
+        
+  <div class="flex flex-wrap justify-between">
+
+<div>
+
+</div>
+
+<div>
+
+</div>
+
+</div>
+
+
+
+
+
+  
+  
+  
+  <div class="flex flex-wrap justify-between">
+    <span>
+    
+      <a href="/docs/guides/" class="flex align-center">
+        <img src="/icons/backward.svg" class="book-icon" alt="Backward" />
+        <span>ガイド</span>
+      </a>
+    
+    </span>
+    <span>
+    
+      <a href="/docs/guides/debugging/" class="flex align-center">
+        <span>デバッグ &amp; 運用</span>
+        <img src="/icons/forward.svg" class="book-icon" alt="Forward" />
+      </a>
+    
+    </span>
+  </div>
+  
+
+
+ 
+        
+  
+  <div class="book-comments">
+
+</div>
+  
+ 
+        
+        
+  
+ 
+        
+  
+  
+    <script>(function(){document.querySelectorAll("pre:has(code)").forEach(e=>{e.addEventListener("click",e.focus),e.addEventListener("copy",function(t){if(t.preventDefault(),navigator.clipboard){const t=window.getSelection().toString()||e.textContent;navigator.clipboard.writeText(t)}})})})()</script>
+  
+
+      </footer>
+
+      <label for="menu-control" class="hidden book-menu-overlay"></label>
+    </div>
+
+    
+  
+  <aside class="book-toc">
+    <div class="book-toc-content">
+      
+  
+<nav id="TableOfContents">
+  <ul>
+    <li><a href="#1-クラス定義">1. クラス定義</a></li>
+    <li><a href="#2-world-へ登録">2. World へ登録</a></li>
+    <li><a href="#3-描画スナップショットの更新">3. 描画スナップショットの更新</a></li>
+    <li><a href="#4-scheduler--signal-連携">4. Scheduler / Signal 連携</a></li>
+    <li><a href="#5-デバッグ-tips">5. デバッグ Tips</a></li>
+  </ul>
+</nav>
+
+
+
+    </div>
+  </aside>
+  
+ 
+  </main>
+
+  
+</body>
+</html>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

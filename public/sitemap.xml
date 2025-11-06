@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"
+  xmlns:xhtml="http://www.w3.org/1999/xhtml">
+  <url>
+    <loc>https://codigrowa-docs.local/docs/</loc>
+  </url><url>
+    <loc>https://codigrowa-docs.local/docs/runtime/</loc>
+  </url><url>
+    <loc>https://codigrowa-docs.local/docs/rendering/</loc>
+  </url><url>
+    <loc>https://codigrowa-docs.local/docs/guides/</loc>
+  </url><url>
+    <loc>https://codigrowa-docs.local/docs/guides/new-entity/</loc>
+  </url><url>
+    <loc>https://codigrowa-docs.local/docs/rendering/game-canvas/</loc>
+  </url><url>
+    <loc>https://codigrowa-docs.local/docs/runtime/architecture/</loc>
+  </url><url>
+    <loc>https://codigrowa-docs.local/docs/runtime/game/</loc>
+  </url><url>
+    <loc>https://codigrowa-docs.local/docs/guides/debugging/</loc>
+  </url><url>
+    <loc>https://codigrowa-docs.local/docs/runtime/world-entity/</loc>
+  </url><url>
+    <loc>https://codigrowa-docs.local/docs/runtime/scheduler/</loc>
+  </url><url>
+    <loc>https://codigrowa-docs.local/docs/runtime/game-loop/</loc>
+  </url><url>
+    <loc>https://codigrowa-docs.local/categories/</loc>
+  </url><url>
+    <loc>https://codigrowa-docs.local/</loc>
+  </url><url>
+    <loc>https://codigrowa-docs.local/tags/</loc>
+  </url>
+</urlset>

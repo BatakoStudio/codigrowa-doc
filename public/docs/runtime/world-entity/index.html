@@ -1,0 +1,515 @@
+<!DOCTYPE html>
+<html lang="ja-jp" dir="ltr">
+<head>
+  <!--
+Made with Book Theme
+https://github.com/alex-shpak/hugo-book
+-->
+
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="description" content="engine/World.ts と engine/entities/Entity.ts はエンジンの心臓部です。World が Entity を束ね、Entity は tickRate ごとに _process() を実行します。
+World の責務# addEntity(entity) / removeEntity(id) / clear() で登録を管理。 process(dt) で全 Entity の process(dt) を呼び出し。 getSnapshots() が描画層へ渡す EntitySnapshot[] を生成。 World は順序保証のため Map を使っています。Entity 追加時に _onEnterWorld() が走り、_ready() が 1 度だけ実行されます。除去時は _onExitWorld() で _ready() の再実行を許可します。
+Entity 抽象クラス# abstract class Entity&lt;TSnapshot extends EntitySnapshot&gt; { tickRate: number; // デフォルト 1/60 秒 private tickTimer = 0; // 経過時間累積 process(dt: number) { this.tickTimer &#43;= dt; while (this.tickTimer &gt;= this.tickRate) { this.tickTimer -= this.tickRate; this._process(this.tickRate); } } protected abstract _process(elapsed: number): void; abstract getSnapshot(): TSnapshot; }tickRate と決定性# tickRate は Entity ごとの更新周期です。World は dt をそのまま流すのではなく、tickTimer に蓄積した上で tickRate を超えた回数だけ _process() を実行します。これにより、RAF のフレームレートが揺らいでもロジックは固定周期で進行します。
+">
+<meta name="theme-color" media="(prefers-color-scheme: light)" content="#ffffff">
+<meta name="theme-color" media="(prefers-color-scheme: dark)" content="#343a40">
+<meta name="color-scheme" content="light dark"><meta property="og:url" content="https://codigrowa-docs.local/docs/runtime/world-entity/">
+  <meta property="og:site_name" content="Codigrowa Docs">
+  <meta property="og:title" content="World & Entity">
+  <meta property="og:description" content="engine/World.ts と engine/entities/Entity.ts はエンジンの心臓部です。World が Entity を束ね、Entity は tickRate ごとに _process() を実行します。
+World の責務# addEntity(entity) / removeEntity(id) / clear() で登録を管理。 process(dt) で全 Entity の process(dt) を呼び出し。 getSnapshots() が描画層へ渡す EntitySnapshot[] を生成。 World は順序保証のため Map を使っています。Entity 追加時に _onEnterWorld() が走り、_ready() が 1 度だけ実行されます。除去時は _onExitWorld() で _ready() の再実行を許可します。
+Entity 抽象クラス# abstract class Entity&lt;TSnapshot extends EntitySnapshot&gt; { tickRate: number; // デフォルト 1/60 秒 private tickTimer = 0; // 経過時間累積 process(dt: number) { this.tickTimer &#43;= dt; while (this.tickTimer &gt;= this.tickRate) { this.tickTimer -= this.tickRate; this._process(this.tickRate); } } protected abstract _process(elapsed: number): void; abstract getSnapshot(): TSnapshot; }tickRate と決定性# tickRate は Entity ごとの更新周期です。World は dt をそのまま流すのではなく、tickTimer に蓄積した上で tickRate を超えた回数だけ _process() を実行します。これにより、RAF のフレームレートが揺らいでもロジックは固定周期で進行します。">
+  <meta property="og:locale" content="ja_jp">
+  <meta property="og:type" content="article">
+    <meta property="article:section" content="docs">
+
+
+  <meta itemprop="name" content="World & Entity">
+  <meta itemprop="description" content="engine/World.ts と engine/entities/Entity.ts はエンジンの心臓部です。World が Entity を束ね、Entity は tickRate ごとに _process() を実行します。
+World の責務# addEntity(entity) / removeEntity(id) / clear() で登録を管理。 process(dt) で全 Entity の process(dt) を呼び出し。 getSnapshots() が描画層へ渡す EntitySnapshot[] を生成。 World は順序保証のため Map を使っています。Entity 追加時に _onEnterWorld() が走り、_ready() が 1 度だけ実行されます。除去時は _onExitWorld() で _ready() の再実行を許可します。
+Entity 抽象クラス# abstract class Entity&lt;TSnapshot extends EntitySnapshot&gt; { tickRate: number; // デフォルト 1/60 秒 private tickTimer = 0; // 経過時間累積 process(dt: number) { this.tickTimer &#43;= dt; while (this.tickTimer &gt;= this.tickRate) { this.tickTimer -= this.tickRate; this._process(this.tickRate); } } protected abstract _process(elapsed: number): void; abstract getSnapshot(): TSnapshot; }tickRate と決定性# tickRate は Entity ごとの更新周期です。World は dt をそのまま流すのではなく、tickTimer に蓄積した上で tickRate を超えた回数だけ _process() を実行します。これにより、RAF のフレームレートが揺らいでもロジックは固定周期で進行します。">
+  <meta itemprop="wordCount" content="172">
+
+<title>World &amp; Entity | Codigrowa Docs</title>
+<link rel="icon" href="/favicon.png" >
+<link rel="manifest" href="/manifest.json">
+<link rel="canonical" href="https://codigrowa-docs.local/docs/runtime/world-entity/">
+<link rel="stylesheet" href="/book.min.6970156cec683193d93c9c4edaf0d56574e4361df2e0c1be4f697ae81c3ba55f.css" integrity="sha256-aXAVbOxoMZPZPJxO2vDVZXTkNh3y4MG&#43;T2l66Bw7pV8=" crossorigin="anonymous">
+
+
+  <script defer src="/fuse.min.js"></script>
+  <script defer src="/ja.search.min.975e4962eb4d2d81886c56376e32a5806ffd36c6119d56f2da6c31af2a847378.js" integrity="sha256-l15JYutNLYGIbFY3bjKlgG/9NsYRnVby2mwxryqEc3g=" crossorigin="anonymous"></script>
+
+
+
+  
+</head>
+<body dir="ltr" class="book-kind-page book-type-docs">
+  <input type="checkbox" class="hidden toggle" id="menu-control" />
+  <input type="checkbox" class="hidden toggle" id="toc-control" />
+  <main class="container flex">
+    
+<aside class="book-menu">
+  <div class="book-menu-content">
+    
+  <nav>
+<h2 class="book-brand">
+  <a class="flex align-center" href="/"><span>Codigrowa Docs</span>
+  </a>
+</h2>
+
+
+<div class="book-search hidden">
+  <input id="book-search-input" type="text" 
+    placeholder="検索"
+    aria-label="検索"
+    maxlength="64" data-hotkeys="s/" />
+  <div class="book-search-spinner hidden"></div>
+  <ul id="book-search-results"></ul>
+</div>
+<script>document.querySelector(".book-search").classList.remove("hidden")</script>
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+  <ul>
+    
+      
+        <li>
+          
+  
+  
+
+  
+    <a href="/docs/runtime/" class="">
+      ランタイム</a>
+  
+
+          
+  <ul>
+    
+      
+        <li>
+          
+  
+  
+
+  
+    <a href="/docs/runtime/architecture/" class="">
+      アーキテクチャ概観</a>
+  
+
+        </li>
+      
+    
+      
+        <li>
+          
+  
+  
+
+  
+    <a href="/docs/runtime/game/" class="">
+      Game クラス</a>
+  
+
+        </li>
+      
+    
+      
+        <li>
+          
+  
+  
+
+  
+    <a href="/docs/runtime/world-entity/" class="active">
+      World &amp; Entity</a>
+  
+
+        </li>
+      
+    
+      
+        <li>
+          
+  
+  
+
+  
+    <a href="/docs/runtime/scheduler/" class="">
+      Scheduler</a>
+  
+
+        </li>
+      
+    
+      
+        <li>
+          
+  
+  
+
+  
+    <a href="/docs/runtime/game-loop/" class="">
+      GameLoop と状態共有</a>
+  
+
+        </li>
+      
+    
+  </ul>
+
+        </li>
+      
+    
+      
+        <li>
+          
+  
+  
+
+  
+    <a href="/docs/rendering/" class="">
+      Renderer</a>
+  
+
+          
+  <ul>
+    
+      
+        <li>
+          
+  
+  
+
+  
+    <a href="/docs/rendering/game-canvas/" class="">
+      GameCanvas / Renderer</a>
+  
+
+        </li>
+      
+    
+  </ul>
+
+        </li>
+      
+    
+      
+        <li>
+          
+  
+  
+
+  
+    <a href="/docs/guides/" class="">
+      ガイド</a>
+  
+
+          
+  <ul>
+    
+      
+        <li>
+          
+  
+  
+
+  
+    <a href="/docs/guides/new-entity/" class="">
+      Entity 実装ガイド</a>
+  
+
+        </li>
+      
+    
+      
+        <li>
+          
+  
+  
+
+  
+    <a href="/docs/guides/debugging/" class="">
+      デバッグ &amp; 運用</a>
+  
+
+        </li>
+      
+    
+  </ul>
+
+        </li>
+      
+    
+  </ul>
+
+
+
+
+
+
+
+
+
+
+
+
+
+</nav>
+
+
+
+
+  <script>(function(){var e=document.querySelector("aside .book-menu-content");addEventListener("beforeunload",function(){localStorage.setItem("menu.scrollTop",e.scrollTop)}),e.scrollTop=localStorage.getItem("menu.scrollTop")})()</script>
+
+
+
+  </div>
+</aside>
+ 
+
+    <div class="book-page">
+      <header class="book-header hidden">
+        
+  <div class="flex align-center justify-between">
+  <label for="menu-control">
+    <img src="/icons/menu.svg" class="book-icon" alt="Menu" />
+  </label>
+
+  <h3>World &amp; Entity</h3>
+
+  <label for="toc-control">
+    
+    <img src="/icons/toc.svg" class="book-icon" alt="Table of Contents" />
+    
+  </label>
+</div>
+
+
+  
+  <aside class="hidden">
+    
+  
+<nav id="TableOfContents">
+  <ul>
+    <li><a href="#world-の責務">World の責務</a></li>
+    <li><a href="#entity-抽象クラス">Entity 抽象クラス</a>
+      <ul>
+        <li><a href="#tickrate-と決定性">tickRate と決定性</a></li>
+        <li><a href="#座標とスナップショット">座標とスナップショット</a></li>
+      </ul>
+    </li>
+    <li><a href="#ライフサイクルフック">ライフサイクルフック</a></li>
+    <li><a href="#例-linearmover">例: LinearMover</a></li>
+  </ul>
+</nav>
+
+
+
+  </aside>
+  
+ 
+      </header>
+
+      
+      
+  <article class="markdown book-article"><p><code>engine/World.ts</code> と <code>engine/entities/Entity.ts</code> はエンジンの心臓部です。World が Entity を束ね、Entity は tickRate ごとに <code>_process()</code> を実行します。</p>
+<h2 id="world-の責務">World の責務<a class="anchor" href="#world-%e3%81%ae%e8%b2%ac%e5%8b%99">#</a></h2>
+<ul>
+<li><code>addEntity(entity)</code> / <code>removeEntity(id)</code> / <code>clear()</code> で登録を管理。</li>
+<li><code>process(dt)</code> で全 Entity の <code>process(dt)</code> を呼び出し。</li>
+<li><code>getSnapshots()</code> が描画層へ渡す <code>EntitySnapshot[]</code> を生成。</li>
+</ul>
+<p>World は順序保証のため <code>Map</code> を使っています。Entity 追加時に <code>_onEnterWorld()</code> が走り、<code>_ready()</code> が 1 度だけ実行されます。除去時は <code>_onExitWorld()</code> で <code>_ready()</code> の再実行を許可します。</p>
+<h2 id="entity-抽象クラス">Entity 抽象クラス<a class="anchor" href="#entity-%e6%8a%bd%e8%b1%a1%e3%82%af%e3%83%a9%e3%82%b9">#</a></h2>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-ts" data-lang="ts"><span style="display:flex;"><span><span style="color:#66d9ef">abstract</span> <span style="color:#66d9ef">class</span> <span style="color:#a6e22e">Entity</span>&lt;<span style="color:#f92672">TSnapshot</span> <span style="color:#a6e22e">extends</span> <span style="color:#a6e22e">EntitySnapshot</span>&gt; {
+</span></span><span style="display:flex;"><span>  <span style="color:#a6e22e">tickRate</span>: <span style="color:#66d9ef">number</span>;      <span style="color:#75715e">// デフォルト 1/60 秒
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>  <span style="color:#66d9ef">private</span> <span style="color:#a6e22e">tickTimer</span> <span style="color:#f92672">=</span> <span style="color:#ae81ff">0</span>; <span style="color:#75715e">// 経過時間累積
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>
+</span></span><span style="display:flex;"><span>  <span style="color:#a6e22e">process</span>(<span style="color:#a6e22e">dt</span>: <span style="color:#66d9ef">number</span>) {
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">this</span>.<span style="color:#a6e22e">tickTimer</span> <span style="color:#f92672">+=</span> <span style="color:#a6e22e">dt</span>;
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">while</span> (<span style="color:#66d9ef">this</span>.<span style="color:#a6e22e">tickTimer</span> <span style="color:#f92672">&gt;=</span> <span style="color:#66d9ef">this</span>.<span style="color:#a6e22e">tickRate</span>) {
+</span></span><span style="display:flex;"><span>      <span style="color:#66d9ef">this</span>.<span style="color:#a6e22e">tickTimer</span> <span style="color:#f92672">-=</span> <span style="color:#66d9ef">this</span>.<span style="color:#a6e22e">tickRate</span>;
+</span></span><span style="display:flex;"><span>      <span style="color:#66d9ef">this</span>.<span style="color:#a6e22e">_process</span>(<span style="color:#66d9ef">this</span>.<span style="color:#a6e22e">tickRate</span>);
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>  }
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">protected</span> <span style="color:#66d9ef">abstract</span> <span style="color:#a6e22e">_process</span>(<span style="color:#a6e22e">elapsed</span>: <span style="color:#66d9ef">number</span>)<span style="color:#f92672">:</span> <span style="color:#66d9ef">void</span>;
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">abstract</span> <span style="color:#a6e22e">getSnapshot</span>()<span style="color:#f92672">:</span> <span style="color:#a6e22e">TSnapshot</span>;
+</span></span><span style="display:flex;"><span>}</span></span></code></pre></div><h3 id="tickrate-と決定性">tickRate と決定性<a class="anchor" href="#tickrate-%e3%81%a8%e6%b1%ba%e5%ae%9a%e6%80%a7">#</a></h3>
+<p><code>tickRate</code> は Entity ごとの更新周期です。World は <code>dt</code> をそのまま流すのではなく、<code>tickTimer</code> に蓄積した上で tickRate を超えた回数だけ <code>_process()</code> を実行します。これにより、RAF のフレームレートが揺らいでもロジックは固定周期で進行します。</p>
+<h3 id="座標とスナップショット">座標とスナップショット<a class="anchor" href="#%e5%ba%a7%e6%a8%99%e3%81%a8%e3%82%b9%e3%83%8a%e3%83%83%e3%83%97%e3%82%b7%e3%83%a7%e3%83%83%e3%83%88">#</a></h3>
+<p><code>Entity</code> には <code>setPosition(x, y)</code> / <code>getPosition()</code> などの基本アクセサがあり、<code>getSnapshot()</code> で描画層へ公開するデータ構造を自由に定義できます。たとえば <code>LinearMover</code> は以下のようなスナップショットを返しています。</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-ts" data-lang="ts"><span style="display:flex;"><span><span style="color:#66d9ef">export</span> <span style="color:#66d9ef">type</span> <span style="color:#a6e22e">LinearMoverSnapshot</span> <span style="color:#f92672">=</span> <span style="color:#a6e22e">EntitySnapshot</span> <span style="color:#f92672">&amp;</span> {
+</span></span><span style="display:flex;"><span>  <span style="color:#a6e22e">x</span>: <span style="color:#66d9ef">number</span>;
+</span></span><span style="display:flex;"><span>  <span style="color:#a6e22e">y</span>: <span style="color:#66d9ef">number</span>;
+</span></span><span style="display:flex;"><span>  <span style="color:#a6e22e">width</span>: <span style="color:#66d9ef">number</span>;
+</span></span><span style="display:flex;"><span>  <span style="color:#a6e22e">height</span>: <span style="color:#66d9ef">number</span>;
+</span></span><span style="display:flex;"><span>  <span style="color:#a6e22e">color</span>: <span style="color:#66d9ef">string</span>;
+</span></span><span style="display:flex;"><span>};</span></span></code></pre></div><h2 id="ライフサイクルフック">ライフサイクルフック<a class="anchor" href="#%e3%83%a9%e3%82%a4%e3%83%95%e3%82%b5%e3%82%a4%e3%82%af%e3%83%ab%e3%83%95%e3%83%83%e3%82%af">#</a></h2>
+<table>
+  <thead>
+      <tr>
+          <th>フック</th>
+          <th>タイミング</th>
+          <th>用途</th>
+      </tr>
+  </thead>
+  <tbody>
+      <tr>
+          <td><code>_init()</code></td>
+          <td>コンストラクタ内で同期呼び出し</td>
+          <td>依存注入や初期値計算。非同期処理は避ける。</td>
+      </tr>
+      <tr>
+          <td><code>_ready()</code></td>
+          <td>World に追加された瞬間に 1 回</td>
+          <td>World 参照が必要な初期化（例: Signal 登録）。</td>
+      </tr>
+      <tr>
+          <td><code>_process(elapsed)</code></td>
+          <td>tick ごと</td>
+          <td>ゲームロジック本体。</td>
+      </tr>
+      <tr>
+          <td><code>_onExitWorld()</code></td>
+          <td>World から削除時</td>
+          <td><code>_ready</code> 再実行を許可。リソース解放ここで。</td>
+      </tr>
+  </tbody>
+</table>
+<h2 id="例-linearmover">例: LinearMover<a class="anchor" href="#%e4%be%8b-linearmover">#</a></h2>
+<p><code>engine/entities/LinearMover.ts</code> は x 軸をループ移動するデモ Entity です。<code>tickRate</code> を個別に指定すると異なる速度・フレームレートでも破綻なく動くことが確認できます。<code>GameCanvas</code> では 3 つの LinearMover を登録し、<code>World.getSnapshots()</code> 経由で矩形描画しています。</p>
+</article>
+ 
+      
+
+      <footer class="book-footer">
+        
+  <div class="flex flex-wrap justify-between">
+
+<div>
+
+</div>
+
+<div>
+
+</div>
+
+</div>
+
+
+
+
+
+  
+  
+  
+  <div class="flex flex-wrap justify-between">
+    <span>
+    
+      <a href="/docs/runtime/game/" class="flex align-center">
+        <img src="/icons/backward.svg" class="book-icon" alt="Backward" />
+        <span>Game クラス</span>
+      </a>
+    
+    </span>
+    <span>
+    
+      <a href="/docs/runtime/scheduler/" class="flex align-center">
+        <span>Scheduler</span>
+        <img src="/icons/forward.svg" class="book-icon" alt="Forward" />
+      </a>
+    
+    </span>
+  </div>
+  
+
+
+ 
+        
+  
+  <div class="book-comments">
+
+</div>
+  
+ 
+        
+        
+  
+ 
+        
+  
+  
+    <script>(function(){document.querySelectorAll("pre:has(code)").forEach(e=>{e.addEventListener("click",e.focus),e.addEventListener("copy",function(t){if(t.preventDefault(),navigator.clipboard){const t=window.getSelection().toString()||e.textContent;navigator.clipboard.writeText(t)}})})})()</script>
+  
+
+      </footer>
+
+      <label for="menu-control" class="hidden book-menu-overlay"></label>
+    </div>
+
+    
+  
+  <aside class="book-toc">
+    <div class="book-toc-content">
+      
+  
+<nav id="TableOfContents">
+  <ul>
+    <li><a href="#world-の責務">World の責務</a></li>
+    <li><a href="#entity-抽象クラス">Entity 抽象クラス</a>
+      <ul>
+        <li><a href="#tickrate-と決定性">tickRate と決定性</a></li>
+        <li><a href="#座標とスナップショット">座標とスナップショット</a></li>
+      </ul>
+    </li>
+    <li><a href="#ライフサイクルフック">ライフサイクルフック</a></li>
+    <li><a href="#例-linearmover">例: LinearMover</a></li>
+  </ul>
+</nav>
+
+
+
+    </div>
+  </aside>
+  
+ 
+  </main>
+
+  
+</body>
+</html>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

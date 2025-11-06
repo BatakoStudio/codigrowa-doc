@@ -1,0 +1,467 @@
+<!DOCTYPE html>
+<html lang="ja-jp" dir="ltr">
+<head>
+  <!--
+Made with Book Theme
+https://github.com/alex-shpak/hugo-book
+-->
+
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="description" content="engine/Scheduler.ts は時間ベースの関数実行を担当します。GameLoop の dt を受け取り、内部に積んだタスクの remaining 時間を減算し、0 を下回ったタイミングで実行します。
+タスクモデル# type SchedulerTask = { id: string; callback: () =&gt; void; remaining: number; interval: number; repeat: boolean; }; wait(delay, callback) は一度だけ実行するタスクを登録。 schedule(callback, interval, { repeat }) はデフォルトで繰り返し（repeat: true）。 cancel(id) / clear() で後始末。 Game.update が Scheduler を World より先に呼び出すため、タスク内で Entity の状態を変更しても同じ tick 内で描画に反映されます。
+使い所# HUD へ定期的にログを出す（components/game-canvas.tsx 内参照）。 Cutscene のように「数秒待ってから次アクション」を表現する。 Entity 内から this.game.wait() を呼びたい場合は依存注入で Game インスタンスを受け取り、_ready() でタスク登録・ _onExitWorld() で cancelTask() する。 エラーハンドリング# タスク実行中に例外が起こっても Scheduler 自身は落ちません。console.warn() を出した上で、単発タスクは削除、繰り返しタスクは次のインターバルへ進みます。長時間走り続けるサービスを意識し、repeat タスクでは必ず cancel() のタイミングを決めておきましょう。
+パフォーマンスのコツ# タスク数は Map で管理しているため数百件程度までなら問題なし。大量登録が必要なら getTaskCount() を監視し、デバッグ HUD から過剰登録を検知する仕組みを追加すると安全です。 update(dt) はタスクが無い場合 O(1) で即 return するため、必要なタイミングでこまめに cancel() しておくと無駄なループを避けられます。 ">
+<meta name="theme-color" media="(prefers-color-scheme: light)" content="#ffffff">
+<meta name="theme-color" media="(prefers-color-scheme: dark)" content="#343a40">
+<meta name="color-scheme" content="light dark"><meta property="og:url" content="https://codigrowa-docs.local/docs/runtime/scheduler/">
+  <meta property="og:site_name" content="Codigrowa Docs">
+  <meta property="og:title" content="Scheduler">
+  <meta property="og:description" content="engine/Scheduler.ts は時間ベースの関数実行を担当します。GameLoop の dt を受け取り、内部に積んだタスクの remaining 時間を減算し、0 を下回ったタイミングで実行します。
+タスクモデル# type SchedulerTask = { id: string; callback: () =&gt; void; remaining: number; interval: number; repeat: boolean; }; wait(delay, callback) は一度だけ実行するタスクを登録。 schedule(callback, interval, { repeat }) はデフォルトで繰り返し（repeat: true）。 cancel(id) / clear() で後始末。 Game.update が Scheduler を World より先に呼び出すため、タスク内で Entity の状態を変更しても同じ tick 内で描画に反映されます。
+使い所# HUD へ定期的にログを出す（components/game-canvas.tsx 内参照）。 Cutscene のように「数秒待ってから次アクション」を表現する。 Entity 内から this.game.wait() を呼びたい場合は依存注入で Game インスタンスを受け取り、_ready() でタスク登録・ _onExitWorld() で cancelTask() する。 エラーハンドリング# タスク実行中に例外が起こっても Scheduler 自身は落ちません。console.warn() を出した上で、単発タスクは削除、繰り返しタスクは次のインターバルへ進みます。長時間走り続けるサービスを意識し、repeat タスクでは必ず cancel() のタイミングを決めておきましょう。
+パフォーマンスのコツ# タスク数は Map で管理しているため数百件程度までなら問題なし。大量登録が必要なら getTaskCount() を監視し、デバッグ HUD から過剰登録を検知する仕組みを追加すると安全です。 update(dt) はタスクが無い場合 O(1) で即 return するため、必要なタイミングでこまめに cancel() しておくと無駄なループを避けられます。">
+  <meta property="og:locale" content="ja_jp">
+  <meta property="og:type" content="article">
+    <meta property="article:section" content="docs">
+
+
+  <meta itemprop="name" content="Scheduler">
+  <meta itemprop="description" content="engine/Scheduler.ts は時間ベースの関数実行を担当します。GameLoop の dt を受け取り、内部に積んだタスクの remaining 時間を減算し、0 を下回ったタイミングで実行します。
+タスクモデル# type SchedulerTask = { id: string; callback: () =&gt; void; remaining: number; interval: number; repeat: boolean; }; wait(delay, callback) は一度だけ実行するタスクを登録。 schedule(callback, interval, { repeat }) はデフォルトで繰り返し（repeat: true）。 cancel(id) / clear() で後始末。 Game.update が Scheduler を World より先に呼び出すため、タスク内で Entity の状態を変更しても同じ tick 内で描画に反映されます。
+使い所# HUD へ定期的にログを出す（components/game-canvas.tsx 内参照）。 Cutscene のように「数秒待ってから次アクション」を表現する。 Entity 内から this.game.wait() を呼びたい場合は依存注入で Game インスタンスを受け取り、_ready() でタスク登録・ _onExitWorld() で cancelTask() する。 エラーハンドリング# タスク実行中に例外が起こっても Scheduler 自身は落ちません。console.warn() を出した上で、単発タスクは削除、繰り返しタスクは次のインターバルへ進みます。長時間走り続けるサービスを意識し、repeat タスクでは必ず cancel() のタイミングを決めておきましょう。
+パフォーマンスのコツ# タスク数は Map で管理しているため数百件程度までなら問題なし。大量登録が必要なら getTaskCount() を監視し、デバッグ HUD から過剰登録を検知する仕組みを追加すると安全です。 update(dt) はタスクが無い場合 O(1) で即 return するため、必要なタイミングでこまめに cancel() しておくと無駄なループを避けられます。">
+  <meta itemprop="wordCount" content="91">
+
+<title>Scheduler | Codigrowa Docs</title>
+<link rel="icon" href="/favicon.png" >
+<link rel="manifest" href="/manifest.json">
+<link rel="canonical" href="https://codigrowa-docs.local/docs/runtime/scheduler/">
+<link rel="stylesheet" href="/book.min.6970156cec683193d93c9c4edaf0d56574e4361df2e0c1be4f697ae81c3ba55f.css" integrity="sha256-aXAVbOxoMZPZPJxO2vDVZXTkNh3y4MG&#43;T2l66Bw7pV8=" crossorigin="anonymous">
+
+
+  <script defer src="/fuse.min.js"></script>
+  <script defer src="/ja.search.min.975e4962eb4d2d81886c56376e32a5806ffd36c6119d56f2da6c31af2a847378.js" integrity="sha256-l15JYutNLYGIbFY3bjKlgG/9NsYRnVby2mwxryqEc3g=" crossorigin="anonymous"></script>
+
+
+
+  
+</head>
+<body dir="ltr" class="book-kind-page book-type-docs">
+  <input type="checkbox" class="hidden toggle" id="menu-control" />
+  <input type="checkbox" class="hidden toggle" id="toc-control" />
+  <main class="container flex">
+    
+<aside class="book-menu">
+  <div class="book-menu-content">
+    
+  <nav>
+<h2 class="book-brand">
+  <a class="flex align-center" href="/"><span>Codigrowa Docs</span>
+  </a>
+</h2>
+
+
+<div class="book-search hidden">
+  <input id="book-search-input" type="text" 
+    placeholder="検索"
+    aria-label="検索"
+    maxlength="64" data-hotkeys="s/" />
+  <div class="book-search-spinner hidden"></div>
+  <ul id="book-search-results"></ul>
+</div>
+<script>document.querySelector(".book-search").classList.remove("hidden")</script>
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+  <ul>
+    
+      
+        <li>
+          
+  
+  
+
+  
+    <a href="/docs/runtime/" class="">
+      ランタイム</a>
+  
+
+          
+  <ul>
+    
+      
+        <li>
+          
+  
+  
+
+  
+    <a href="/docs/runtime/architecture/" class="">
+      アーキテクチャ概観</a>
+  
+
+        </li>
+      
+    
+      
+        <li>
+          
+  
+  
+
+  
+    <a href="/docs/runtime/game/" class="">
+      Game クラス</a>
+  
+
+        </li>
+      
+    
+      
+        <li>
+          
+  
+  
+
+  
+    <a href="/docs/runtime/world-entity/" class="">
+      World &amp; Entity</a>
+  
+
+        </li>
+      
+    
+      
+        <li>
+          
+  
+  
+
+  
+    <a href="/docs/runtime/scheduler/" class="active">
+      Scheduler</a>
+  
+
+        </li>
+      
+    
+      
+        <li>
+          
+  
+  
+
+  
+    <a href="/docs/runtime/game-loop/" class="">
+      GameLoop と状態共有</a>
+  
+
+        </li>
+      
+    
+  </ul>
+
+        </li>
+      
+    
+      
+        <li>
+          
+  
+  
+
+  
+    <a href="/docs/rendering/" class="">
+      Renderer</a>
+  
+
+          
+  <ul>
+    
+      
+        <li>
+          
+  
+  
+
+  
+    <a href="/docs/rendering/game-canvas/" class="">
+      GameCanvas / Renderer</a>
+  
+
+        </li>
+      
+    
+  </ul>
+
+        </li>
+      
+    
+      
+        <li>
+          
+  
+  
+
+  
+    <a href="/docs/guides/" class="">
+      ガイド</a>
+  
+
+          
+  <ul>
+    
+      
+        <li>
+          
+  
+  
+
+  
+    <a href="/docs/guides/new-entity/" class="">
+      Entity 実装ガイド</a>
+  
+
+        </li>
+      
+    
+      
+        <li>
+          
+  
+  
+
+  
+    <a href="/docs/guides/debugging/" class="">
+      デバッグ &amp; 運用</a>
+  
+
+        </li>
+      
+    
+  </ul>
+
+        </li>
+      
+    
+  </ul>
+
+
+
+
+
+
+
+
+
+
+
+
+
+</nav>
+
+
+
+
+  <script>(function(){var e=document.querySelector("aside .book-menu-content");addEventListener("beforeunload",function(){localStorage.setItem("menu.scrollTop",e.scrollTop)}),e.scrollTop=localStorage.getItem("menu.scrollTop")})()</script>
+
+
+
+  </div>
+</aside>
+ 
+
+    <div class="book-page">
+      <header class="book-header hidden">
+        
+  <div class="flex align-center justify-between">
+  <label for="menu-control">
+    <img src="/icons/menu.svg" class="book-icon" alt="Menu" />
+  </label>
+
+  <h3>Scheduler</h3>
+
+  <label for="toc-control">
+    
+    <img src="/icons/toc.svg" class="book-icon" alt="Table of Contents" />
+    
+  </label>
+</div>
+
+
+  
+  <aside class="hidden">
+    
+  
+<nav id="TableOfContents">
+  <ul>
+    <li><a href="#タスクモデル">タスクモデル</a></li>
+    <li><a href="#使い所">使い所</a></li>
+    <li><a href="#エラーハンドリング">エラーハンドリング</a></li>
+    <li><a href="#パフォーマンスのコツ">パフォーマンスのコツ</a></li>
+  </ul>
+</nav>
+
+
+
+  </aside>
+  
+ 
+      </header>
+
+      
+      
+  <article class="markdown book-article"><p><code>engine/Scheduler.ts</code> は時間ベースの関数実行を担当します。GameLoop の <code>dt</code> を受け取り、内部に積んだタスクの <code>remaining</code> 時間を減算し、0 を下回ったタイミングで実行します。</p>
+<h2 id="タスクモデル">タスクモデル<a class="anchor" href="#%e3%82%bf%e3%82%b9%e3%82%af%e3%83%a2%e3%83%87%e3%83%ab">#</a></h2>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-ts" data-lang="ts"><span style="display:flex;"><span><span style="color:#66d9ef">type</span> <span style="color:#a6e22e">SchedulerTask</span> <span style="color:#f92672">=</span> {
+</span></span><span style="display:flex;"><span>  <span style="color:#a6e22e">id</span>: <span style="color:#66d9ef">string</span>;
+</span></span><span style="display:flex;"><span>  <span style="color:#a6e22e">callback</span><span style="color:#f92672">:</span> () <span style="color:#f92672">=&gt;</span> <span style="color:#66d9ef">void</span>;
+</span></span><span style="display:flex;"><span>  <span style="color:#a6e22e">remaining</span>: <span style="color:#66d9ef">number</span>;
+</span></span><span style="display:flex;"><span>  <span style="color:#a6e22e">interval</span>: <span style="color:#66d9ef">number</span>;
+</span></span><span style="display:flex;"><span>  <span style="color:#a6e22e">repeat</span>: <span style="color:#66d9ef">boolean</span>;
+</span></span><span style="display:flex;"><span>};</span></span></code></pre></div><ul>
+<li><code>wait(delay, callback)</code> は一度だけ実行するタスクを登録。</li>
+<li><code>schedule(callback, interval, { repeat })</code> はデフォルトで繰り返し（<code>repeat: true</code>）。</li>
+<li><code>cancel(id)</code> / <code>clear()</code> で後始末。</li>
+</ul>
+<p><code>Game.update</code> が Scheduler を World より先に呼び出すため、タスク内で Entity の状態を変更しても同じ tick 内で描画に反映されます。</p>
+<h2 id="使い所">使い所<a class="anchor" href="#%e4%bd%bf%e3%81%84%e6%89%80">#</a></h2>
+<ul>
+<li>HUD へ定期的にログを出す（<code>components/game-canvas.tsx</code> 内参照）。</li>
+<li>Cutscene のように「数秒待ってから次アクション」を表現する。</li>
+<li>Entity 内から <code>this.game.wait()</code> を呼びたい場合は依存注入で Game インスタンスを受け取り、<code>_ready()</code> でタスク登録・ <code>_onExitWorld()</code> で <code>cancelTask()</code> する。</li>
+</ul>
+<h2 id="エラーハンドリング">エラーハンドリング<a class="anchor" href="#%e3%82%a8%e3%83%a9%e3%83%bc%e3%83%8f%e3%83%b3%e3%83%89%e3%83%aa%e3%83%b3%e3%82%b0">#</a></h2>
+<p>タスク実行中に例外が起こっても Scheduler 自身は落ちません。<code>console.warn()</code> を出した上で、単発タスクは削除、繰り返しタスクは次のインターバルへ進みます。長時間走り続けるサービスを意識し、repeat タスクでは必ず <code>cancel()</code> のタイミングを決めておきましょう。</p>
+<h2 id="パフォーマンスのコツ">パフォーマンスのコツ<a class="anchor" href="#%e3%83%91%e3%83%95%e3%82%a9%e3%83%bc%e3%83%9e%e3%83%b3%e3%82%b9%e3%81%ae%e3%82%b3%e3%83%84">#</a></h2>
+<ul>
+<li>タスク数は <code>Map</code> で管理しているため数百件程度までなら問題なし。大量登録が必要なら <code>getTaskCount()</code> を監視し、デバッグ HUD から過剰登録を検知する仕組みを追加すると安全です。</li>
+<li><code>update(dt)</code> はタスクが無い場合 O(1) で即 return するため、必要なタイミングでこまめに <code>cancel()</code> しておくと無駄なループを避けられます。</li>
+</ul>
+</article>
+ 
+      
+
+      <footer class="book-footer">
+        
+  <div class="flex flex-wrap justify-between">
+
+<div>
+
+</div>
+
+<div>
+
+</div>
+
+</div>
+
+
+
+
+
+  
+  
+  
+  <div class="flex flex-wrap justify-between">
+    <span>
+    
+      <a href="/docs/runtime/world-entity/" class="flex align-center">
+        <img src="/icons/backward.svg" class="book-icon" alt="Backward" />
+        <span>World &amp; Entity</span>
+      </a>
+    
+    </span>
+    <span>
+    
+      <a href="/docs/runtime/game-loop/" class="flex align-center">
+        <span>GameLoop と状態共有</span>
+        <img src="/icons/forward.svg" class="book-icon" alt="Forward" />
+      </a>
+    
+    </span>
+  </div>
+  
+
+
+ 
+        
+  
+  <div class="book-comments">
+
+</div>
+  
+ 
+        
+        
+  
+ 
+        
+  
+  
+    <script>(function(){document.querySelectorAll("pre:has(code)").forEach(e=>{e.addEventListener("click",e.focus),e.addEventListener("copy",function(t){if(t.preventDefault(),navigator.clipboard){const t=window.getSelection().toString()||e.textContent;navigator.clipboard.writeText(t)}})})})()</script>
+  
+
+      </footer>
+
+      <label for="menu-control" class="hidden book-menu-overlay"></label>
+    </div>
+
+    
+  
+  <aside class="book-toc">
+    <div class="book-toc-content">
+      
+  
+<nav id="TableOfContents">
+  <ul>
+    <li><a href="#タスクモデル">タスクモデル</a></li>
+    <li><a href="#使い所">使い所</a></li>
+    <li><a href="#エラーハンドリング">エラーハンドリング</a></li>
+    <li><a href="#パフォーマンスのコツ">パフォーマンスのコツ</a></li>
+  </ul>
+</nav>
+
+
+
+    </div>
+  </aside>
+  
+ 
+  </main>
+
+  
+</body>
+</html>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

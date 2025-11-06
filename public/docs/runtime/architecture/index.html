@@ -1,0 +1,494 @@
+<!DOCTYPE html>
+<html lang="ja-jp" dir="ltr">
+<head>
+  <!--
+Made with Book Theme
+https://github.com/alex-shpak/hugo-book
+-->
+
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="description" content="Codigrowa のゲームエンジンは GameLoop → Scheduler → World → Entity → Renderer という鎖で構成されています。Expo（React Native）上では requestAnimationFrame を起点に時間が進み、React 側のコンポーネントは Game.onRender() から受け取るスナップショットだけで描画を完結させます。
+useGameLoop (engine/hooks/useGameLoop.ts) │ ▼ ┌──────────────┐ │ Game │ ← ランタイム中枢 │ • Scheduler │ ← 関数単位 tick │ • World │ ← Entity 単位 tick └──────────────┘ │ ▼ Canvas Renderer (components/game-canvas.tsx)データフロー# useGameLoop が requestAnimationFrame から dt（秒）を算出し Game.update(dt) を連続呼び出し。 Game.update はまず Scheduler.update(dt) を処理し、待機中のコールバックを実行。 続いて World.process(dt) が全 Entity の process() を tick に合わせて回す。 Game.notifyRender() が World からのスナップショットをまとめ、onRender 購読者（HUD や Skia Canvas）へ配布。 描画層は GameRenderPayload を受け取るだけで済むため、World/Entity の内部状態を UI から直接 mutate しません。これにより、レンダリングとロジックの責務分離とデバッグ容易性を両立しています。
+">
+<meta name="theme-color" media="(prefers-color-scheme: light)" content="#ffffff">
+<meta name="theme-color" media="(prefers-color-scheme: dark)" content="#343a40">
+<meta name="color-scheme" content="light dark"><meta property="og:url" content="https://codigrowa-docs.local/docs/runtime/architecture/">
+  <meta property="og:site_name" content="Codigrowa Docs">
+  <meta property="og:title" content="アーキテクチャ概観">
+  <meta property="og:description" content="Codigrowa のゲームエンジンは GameLoop → Scheduler → World → Entity → Renderer という鎖で構成されています。Expo（React Native）上では requestAnimationFrame を起点に時間が進み、React 側のコンポーネントは Game.onRender() から受け取るスナップショットだけで描画を完結させます。
+useGameLoop (engine/hooks/useGameLoop.ts) │ ▼ ┌──────────────┐ │ Game │ ← ランタイム中枢 │ • Scheduler │ ← 関数単位 tick │ • World │ ← Entity 単位 tick └──────────────┘ │ ▼ Canvas Renderer (components/game-canvas.tsx)データフロー# useGameLoop が requestAnimationFrame から dt（秒）を算出し Game.update(dt) を連続呼び出し。 Game.update はまず Scheduler.update(dt) を処理し、待機中のコールバックを実行。 続いて World.process(dt) が全 Entity の process() を tick に合わせて回す。 Game.notifyRender() が World からのスナップショットをまとめ、onRender 購読者（HUD や Skia Canvas）へ配布。 描画層は GameRenderPayload を受け取るだけで済むため、World/Entity の内部状態を UI から直接 mutate しません。これにより、レンダリングとロジックの責務分離とデバッグ容易性を両立しています。">
+  <meta property="og:locale" content="ja_jp">
+  <meta property="og:type" content="article">
+    <meta property="article:section" content="docs">
+
+
+  <meta itemprop="name" content="アーキテクチャ概観">
+  <meta itemprop="description" content="Codigrowa のゲームエンジンは GameLoop → Scheduler → World → Entity → Renderer という鎖で構成されています。Expo（React Native）上では requestAnimationFrame を起点に時間が進み、React 側のコンポーネントは Game.onRender() から受け取るスナップショットだけで描画を完結させます。
+useGameLoop (engine/hooks/useGameLoop.ts) │ ▼ ┌──────────────┐ │ Game │ ← ランタイム中枢 │ • Scheduler │ ← 関数単位 tick │ • World │ ← Entity 単位 tick └──────────────┘ │ ▼ Canvas Renderer (components/game-canvas.tsx)データフロー# useGameLoop が requestAnimationFrame から dt（秒）を算出し Game.update(dt) を連続呼び出し。 Game.update はまず Scheduler.update(dt) を処理し、待機中のコールバックを実行。 続いて World.process(dt) が全 Entity の process() を tick に合わせて回す。 Game.notifyRender() が World からのスナップショットをまとめ、onRender 購読者（HUD や Skia Canvas）へ配布。 描画層は GameRenderPayload を受け取るだけで済むため、World/Entity の内部状態を UI から直接 mutate しません。これにより、レンダリングとロジックの責務分離とデバッグ容易性を両立しています。">
+  <meta itemprop="wordCount" content="118">
+
+<title>アーキテクチャ概観 | Codigrowa Docs</title>
+<link rel="icon" href="/favicon.png" >
+<link rel="manifest" href="/manifest.json">
+<link rel="canonical" href="https://codigrowa-docs.local/docs/runtime/architecture/">
+<link rel="stylesheet" href="/book.min.6970156cec683193d93c9c4edaf0d56574e4361df2e0c1be4f697ae81c3ba55f.css" integrity="sha256-aXAVbOxoMZPZPJxO2vDVZXTkNh3y4MG&#43;T2l66Bw7pV8=" crossorigin="anonymous">
+
+
+  <script defer src="/fuse.min.js"></script>
+  <script defer src="/ja.search.min.975e4962eb4d2d81886c56376e32a5806ffd36c6119d56f2da6c31af2a847378.js" integrity="sha256-l15JYutNLYGIbFY3bjKlgG/9NsYRnVby2mwxryqEc3g=" crossorigin="anonymous"></script>
+
+
+
+  
+</head>
+<body dir="ltr" class="book-kind-page book-type-docs">
+  <input type="checkbox" class="hidden toggle" id="menu-control" />
+  <input type="checkbox" class="hidden toggle" id="toc-control" />
+  <main class="container flex">
+    
+<aside class="book-menu">
+  <div class="book-menu-content">
+    
+  <nav>
+<h2 class="book-brand">
+  <a class="flex align-center" href="/"><span>Codigrowa Docs</span>
+  </a>
+</h2>
+
+
+<div class="book-search hidden">
+  <input id="book-search-input" type="text" 
+    placeholder="検索"
+    aria-label="検索"
+    maxlength="64" data-hotkeys="s/" />
+  <div class="book-search-spinner hidden"></div>
+  <ul id="book-search-results"></ul>
+</div>
+<script>document.querySelector(".book-search").classList.remove("hidden")</script>
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+  <ul>
+    
+      
+        <li>
+          
+  
+  
+
+  
+    <a href="/docs/runtime/" class="">
+      ランタイム</a>
+  
+
+          
+  <ul>
+    
+      
+        <li>
+          
+  
+  
+
+  
+    <a href="/docs/runtime/architecture/" class="active">
+      アーキテクチャ概観</a>
+  
+
+        </li>
+      
+    
+      
+        <li>
+          
+  
+  
+
+  
+    <a href="/docs/runtime/game/" class="">
+      Game クラス</a>
+  
+
+        </li>
+      
+    
+      
+        <li>
+          
+  
+  
+
+  
+    <a href="/docs/runtime/world-entity/" class="">
+      World &amp; Entity</a>
+  
+
+        </li>
+      
+    
+      
+        <li>
+          
+  
+  
+
+  
+    <a href="/docs/runtime/scheduler/" class="">
+      Scheduler</a>
+  
+
+        </li>
+      
+    
+      
+        <li>
+          
+  
+  
+
+  
+    <a href="/docs/runtime/game-loop/" class="">
+      GameLoop と状態共有</a>
+  
+
+        </li>
+      
+    
+  </ul>
+
+        </li>
+      
+    
+      
+        <li>
+          
+  
+  
+
+  
+    <a href="/docs/rendering/" class="">
+      Renderer</a>
+  
+
+          
+  <ul>
+    
+      
+        <li>
+          
+  
+  
+
+  
+    <a href="/docs/rendering/game-canvas/" class="">
+      GameCanvas / Renderer</a>
+  
+
+        </li>
+      
+    
+  </ul>
+
+        </li>
+      
+    
+      
+        <li>
+          
+  
+  
+
+  
+    <a href="/docs/guides/" class="">
+      ガイド</a>
+  
+
+          
+  <ul>
+    
+      
+        <li>
+          
+  
+  
+
+  
+    <a href="/docs/guides/new-entity/" class="">
+      Entity 実装ガイド</a>
+  
+
+        </li>
+      
+    
+      
+        <li>
+          
+  
+  
+
+  
+    <a href="/docs/guides/debugging/" class="">
+      デバッグ &amp; 運用</a>
+  
+
+        </li>
+      
+    
+  </ul>
+
+        </li>
+      
+    
+  </ul>
+
+
+
+
+
+
+
+
+
+
+
+
+
+</nav>
+
+
+
+
+  <script>(function(){var e=document.querySelector("aside .book-menu-content");addEventListener("beforeunload",function(){localStorage.setItem("menu.scrollTop",e.scrollTop)}),e.scrollTop=localStorage.getItem("menu.scrollTop")})()</script>
+
+
+
+  </div>
+</aside>
+ 
+
+    <div class="book-page">
+      <header class="book-header hidden">
+        
+  <div class="flex align-center justify-between">
+  <label for="menu-control">
+    <img src="/icons/menu.svg" class="book-icon" alt="Menu" />
+  </label>
+
+  <h3>アーキテクチャ概観</h3>
+
+  <label for="toc-control">
+    
+    <img src="/icons/toc.svg" class="book-icon" alt="Table of Contents" />
+    
+  </label>
+</div>
+
+
+  
+  <aside class="hidden">
+    
+  
+<nav id="TableOfContents">
+  <ul>
+    <li>
+      <ul>
+        <li><a href="#データフロー">データフロー</a></li>
+        <li><a href="#主要ディレクトリ">主要ディレクトリ</a></li>
+      </ul>
+    </li>
+  </ul>
+</nav>
+
+
+
+  </aside>
+  
+ 
+      </header>
+
+      
+      
+  <article class="markdown book-article"><p>Codigrowa のゲームエンジンは <strong>GameLoop → Scheduler → World → Entity → Renderer</strong> という鎖で構成されています。Expo（React Native）上では <code>requestAnimationFrame</code> を起点に時間が進み、React 側のコンポーネントは <code>Game.onRender()</code> から受け取るスナップショットだけで描画を完結させます。</p>
+<pre tabindex="0"><code>useGameLoop (engine/hooks/useGameLoop.ts)
+        │
+        ▼
+┌──────────────┐
+│ Game         │  ← ランタイム中枢
+│  • Scheduler │  ← 関数単位 tick
+│  • World     │  ← Entity 単位 tick
+└──────────────┘
+        │
+        ▼
+Canvas Renderer (components/game-canvas.tsx)</code></pre><h3 id="データフロー">データフロー<a class="anchor" href="#%e3%83%87%e3%83%bc%e3%82%bf%e3%83%95%e3%83%ad%e3%83%bc">#</a></h3>
+<ol>
+<li><code>useGameLoop</code> が <code>requestAnimationFrame</code> から <code>dt</code>（秒）を算出し <code>Game.update(dt)</code> を連続呼び出し。</li>
+<li><code>Game.update</code> はまず <code>Scheduler.update(dt)</code> を処理し、待機中のコールバックを実行。</li>
+<li>続いて <code>World.process(dt)</code> が全 <code>Entity</code> の <code>process()</code> を tick に合わせて回す。</li>
+<li><code>Game.notifyRender()</code> が World からのスナップショットをまとめ、<code>onRender</code> 購読者（HUD や Skia Canvas）へ配布。</li>
+</ol>
+<p>描画層は <code>GameRenderPayload</code> を受け取るだけで済むため、World/Entity の内部状態を UI から直接 mutate しません。これにより、レンダリングとロジックの責務分離とデバッグ容易性を両立しています。</p>
+<h3 id="主要ディレクトリ">主要ディレクトリ<a class="anchor" href="#%e4%b8%bb%e8%a6%81%e3%83%87%e3%82%a3%e3%83%ac%e3%82%af%e3%83%88%e3%83%aa">#</a></h3>
+<table>
+  <thead>
+      <tr>
+          <th>ディレクトリ</th>
+          <th>役割</th>
+      </tr>
+  </thead>
+  <tbody>
+      <tr>
+          <td><code>engine/Game.ts</code></td>
+          <td>GameLoop とサブシステム統合。start/pause/resume などのライフサイクル API を提供。</td>
+      </tr>
+      <tr>
+          <td><code>engine/World.ts</code></td>
+          <td>Entity 管理・スナップショット生成。</td>
+      </tr>
+      <tr>
+          <td><code>engine/entities/</code></td>
+          <td>Entity 抽象クラスと具象実装（例: <code>LinearMover</code>）。</td>
+      </tr>
+      <tr>
+          <td><code>engine/Scheduler.ts</code></td>
+          <td>時間ベースの関数実行を管理。</td>
+      </tr>
+      <tr>
+          <td><code>engine/hooks/useGameLoop.ts</code></td>
+          <td>React フックで RAF ループを抽象化。</td>
+      </tr>
+      <tr>
+          <td><code>components/game-canvas.tsx</code></td>
+          <td>Game と react-native-skia を橋渡しし、デモ描画や HUD を担う。</td>
+      </tr>
+  </tbody>
+</table>
+<p>以降の章で各レイヤーの API と実装パターンを詳述します。</p>
+</article>
+ 
+      
+
+      <footer class="book-footer">
+        
+  <div class="flex flex-wrap justify-between">
+
+<div>
+
+</div>
+
+<div>
+
+</div>
+
+</div>
+
+
+
+
+
+  
+  
+  
+  <div class="flex flex-wrap justify-between">
+    <span>
+    
+      <a href="/docs/runtime/" class="flex align-center">
+        <img src="/icons/backward.svg" class="book-icon" alt="Backward" />
+        <span>ランタイム</span>
+      </a>
+    
+    </span>
+    <span>
+    
+      <a href="/docs/runtime/game/" class="flex align-center">
+        <span>Game クラス</span>
+        <img src="/icons/forward.svg" class="book-icon" alt="Forward" />
+      </a>
+    
+    </span>
+  </div>
+  
+
+
+ 
+        
+  
+  <div class="book-comments">
+
+</div>
+  
+ 
+        
+        
+  
+ 
+        
+  
+  
+    <script>(function(){document.querySelectorAll("pre:has(code)").forEach(e=>{e.addEventListener("click",e.focus),e.addEventListener("copy",function(t){if(t.preventDefault(),navigator.clipboard){const t=window.getSelection().toString()||e.textContent;navigator.clipboard.writeText(t)}})})})()</script>
+  
+
+      </footer>
+
+      <label for="menu-control" class="hidden book-menu-overlay"></label>
+    </div>
+
+    
+  
+  <aside class="book-toc">
+    <div class="book-toc-content">
+      
+  
+<nav id="TableOfContents">
+  <ul>
+    <li>
+      <ul>
+        <li><a href="#データフロー">データフロー</a></li>
+        <li><a href="#主要ディレクトリ">主要ディレクトリ</a></li>
+      </ul>
+    </li>
+  </ul>
+</nav>
+
+
+
+    </div>
+  </aside>
+  
+ 
+  </main>
+
+  
+</body>
+</html>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

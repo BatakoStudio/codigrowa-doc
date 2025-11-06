@@ -1,0 +1,14 @@
+baseURL = 'https://codigrowa-docs.local/'
+languageCode = 'ja-jp'
+title = 'Codigrowa Docs'
+defaultContentLanguage = 'ja'
+theme = 'book'
+enableRobotsTXT = true
+
+[params]
+  BookTheme = 'auto'
+  BookToC = true
+  BookSection = 'docs'
+  BookSearch = true
+  BookRepo = 'https://github.com/BatakoStudio/codigrowa'
+  BookEditPath = 'tree/main'

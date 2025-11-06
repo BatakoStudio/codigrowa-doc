@@ -1,0 +1,479 @@
+<!DOCTYPE html>
+<html lang="ja-jp" dir="ltr">
+<head>
+  <!--
+Made with Book Theme
+https://github.com/alex-shpak/hugo-book
+-->
+
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="description" content="エンジンを拡張する際に役立つ検証フローとチェックリストです。
+1. ログと HUD# Game.update は __DEV__ 時に dt をログ出力します。大量に出る場合は expo start --no-dev で実機挙動を確認。 Game.onRender から受け取る GameRenderPayload を HUD 表示し、elapsed / tick / entities.length をリアルタイムに監視。components/game-canvas.tsx の functionLogs 実装を流用できます。 2. テスト駆動のすすめ# World と Entity は純粋な TypeScript クラスなので Jest で単体テスト可能。 Scheduler は update(dt) を段階的に呼び、task.callback が発火するかで検証できます。getTaskCount() を監視すればリーク検知が容易です。 3. 典型的なトラブルシュート# 症状 対処 Entity が停止する tickRate が大きすぎて _process が呼ばれていない可能性。__DEV__ ログで dt を確認。 Renderer に反映されない getSnapshot() で必要なフィールドを返しているか確認。GameCanvas 側で型ガードを追加。 Scheduler タスクが残り続ける game.cancelTask(id) を useEffect のクリーンアップで呼ぶ。 複数画面で Game を共有したい useGameStore の game インスタンスをシングルトンとして取り回し、各画面で onRender を個別登録。 4. 将来の拡張ポイント# docs/game_engine_develop_plan.md に記載されている Step #4 以降（タップ入力、Signal、Sprite 切替など）は現行アーキテクチャを前提としています。API 変更時は互換性を保つため、Hugo ドキュメント内の該当章も更新してください。
+">
+<meta name="theme-color" media="(prefers-color-scheme: light)" content="#ffffff">
+<meta name="theme-color" media="(prefers-color-scheme: dark)" content="#343a40">
+<meta name="color-scheme" content="light dark"><meta property="og:url" content="https://codigrowa-docs.local/docs/guides/debugging/">
+  <meta property="og:site_name" content="Codigrowa Docs">
+  <meta property="og:title" content="デバッグ & 運用">
+  <meta property="og:description" content="エンジンを拡張する際に役立つ検証フローとチェックリストです。
+1. ログと HUD# Game.update は __DEV__ 時に dt をログ出力します。大量に出る場合は expo start --no-dev で実機挙動を確認。 Game.onRender から受け取る GameRenderPayload を HUD 表示し、elapsed / tick / entities.length をリアルタイムに監視。components/game-canvas.tsx の functionLogs 実装を流用できます。 2. テスト駆動のすすめ# World と Entity は純粋な TypeScript クラスなので Jest で単体テスト可能。 Scheduler は update(dt) を段階的に呼び、task.callback が発火するかで検証できます。getTaskCount() を監視すればリーク検知が容易です。 3. 典型的なトラブルシュート# 症状 対処 Entity が停止する tickRate が大きすぎて _process が呼ばれていない可能性。__DEV__ ログで dt を確認。 Renderer に反映されない getSnapshot() で必要なフィールドを返しているか確認。GameCanvas 側で型ガードを追加。 Scheduler タスクが残り続ける game.cancelTask(id) を useEffect のクリーンアップで呼ぶ。 複数画面で Game を共有したい useGameStore の game インスタンスをシングルトンとして取り回し、各画面で onRender を個別登録。 4. 将来の拡張ポイント# docs/game_engine_develop_plan.md に記載されている Step #4 以降（タップ入力、Signal、Sprite 切替など）は現行アーキテクチャを前提としています。API 変更時は互換性を保つため、Hugo ドキュメント内の該当章も更新してください。">
+  <meta property="og:locale" content="ja_jp">
+  <meta property="og:type" content="article">
+    <meta property="article:section" content="docs">
+
+
+  <meta itemprop="name" content="デバッグ & 運用">
+  <meta itemprop="description" content="エンジンを拡張する際に役立つ検証フローとチェックリストです。
+1. ログと HUD# Game.update は __DEV__ 時に dt をログ出力します。大量に出る場合は expo start --no-dev で実機挙動を確認。 Game.onRender から受け取る GameRenderPayload を HUD 表示し、elapsed / tick / entities.length をリアルタイムに監視。components/game-canvas.tsx の functionLogs 実装を流用できます。 2. テスト駆動のすすめ# World と Entity は純粋な TypeScript クラスなので Jest で単体テスト可能。 Scheduler は update(dt) を段階的に呼び、task.callback が発火するかで検証できます。getTaskCount() を監視すればリーク検知が容易です。 3. 典型的なトラブルシュート# 症状 対処 Entity が停止する tickRate が大きすぎて _process が呼ばれていない可能性。__DEV__ ログで dt を確認。 Renderer に反映されない getSnapshot() で必要なフィールドを返しているか確認。GameCanvas 側で型ガードを追加。 Scheduler タスクが残り続ける game.cancelTask(id) を useEffect のクリーンアップで呼ぶ。 複数画面で Game を共有したい useGameStore の game インスタンスをシングルトンとして取り回し、各画面で onRender を個別登録。 4. 将来の拡張ポイント# docs/game_engine_develop_plan.md に記載されている Step #4 以降（タップ入力、Signal、Sprite 切替など）は現行アーキテクチャを前提としています。API 変更時は互換性を保つため、Hugo ドキュメント内の該当章も更新してください。">
+  <meta itemprop="wordCount" content="107">
+
+<title>デバッグ &amp; 運用 | Codigrowa Docs</title>
+<link rel="icon" href="/favicon.png" >
+<link rel="manifest" href="/manifest.json">
+<link rel="canonical" href="https://codigrowa-docs.local/docs/guides/debugging/">
+<link rel="stylesheet" href="/book.min.6970156cec683193d93c9c4edaf0d56574e4361df2e0c1be4f697ae81c3ba55f.css" integrity="sha256-aXAVbOxoMZPZPJxO2vDVZXTkNh3y4MG&#43;T2l66Bw7pV8=" crossorigin="anonymous">
+
+
+  <script defer src="/fuse.min.js"></script>
+  <script defer src="/ja.search.min.975e4962eb4d2d81886c56376e32a5806ffd36c6119d56f2da6c31af2a847378.js" integrity="sha256-l15JYutNLYGIbFY3bjKlgG/9NsYRnVby2mwxryqEc3g=" crossorigin="anonymous"></script>
+
+
+
+  
+</head>
+<body dir="ltr" class="book-kind-page book-type-docs">
+  <input type="checkbox" class="hidden toggle" id="menu-control" />
+  <input type="checkbox" class="hidden toggle" id="toc-control" />
+  <main class="container flex">
+    
+<aside class="book-menu">
+  <div class="book-menu-content">
+    
+  <nav>
+<h2 class="book-brand">
+  <a class="flex align-center" href="/"><span>Codigrowa Docs</span>
+  </a>
+</h2>
+
+
+<div class="book-search hidden">
+  <input id="book-search-input" type="text" 
+    placeholder="検索"
+    aria-label="検索"
+    maxlength="64" data-hotkeys="s/" />
+  <div class="book-search-spinner hidden"></div>
+  <ul id="book-search-results"></ul>
+</div>
+<script>document.querySelector(".book-search").classList.remove("hidden")</script>
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+  <ul>
+    
+      
+        <li>
+          
+  
+  
+
+  
+    <a href="/docs/runtime/" class="">
+      ランタイム</a>
+  
+
+          
+  <ul>
+    
+      
+        <li>
+          
+  
+  
+
+  
+    <a href="/docs/runtime/architecture/" class="">
+      アーキテクチャ概観</a>
+  
+
+        </li>
+      
+    
+      
+        <li>
+          
+  
+  
+
+  
+    <a href="/docs/runtime/game/" class="">
+      Game クラス</a>
+  
+
+        </li>
+      
+    
+      
+        <li>
+          
+  
+  
+
+  
+    <a href="/docs/runtime/world-entity/" class="">
+      World &amp; Entity</a>
+  
+
+        </li>
+      
+    
+      
+        <li>
+          
+  
+  
+
+  
+    <a href="/docs/runtime/scheduler/" class="">
+      Scheduler</a>
+  
+
+        </li>
+      
+    
+      
+        <li>
+          
+  
+  
+
+  
+    <a href="/docs/runtime/game-loop/" class="">
+      GameLoop と状態共有</a>
+  
+
+        </li>
+      
+    
+  </ul>
+
+        </li>
+      
+    
+      
+        <li>
+          
+  
+  
+
+  
+    <a href="/docs/rendering/" class="">
+      Renderer</a>
+  
+
+          
+  <ul>
+    
+      
+        <li>
+          
+  
+  
+
+  
+    <a href="/docs/rendering/game-canvas/" class="">
+      GameCanvas / Renderer</a>
+  
+
+        </li>
+      
+    
+  </ul>
+
+        </li>
+      
+    
+      
+        <li>
+          
+  
+  
+
+  
+    <a href="/docs/guides/" class="">
+      ガイド</a>
+  
+
+          
+  <ul>
+    
+      
+        <li>
+          
+  
+  
+
+  
+    <a href="/docs/guides/new-entity/" class="">
+      Entity 実装ガイド</a>
+  
+
+        </li>
+      
+    
+      
+        <li>
+          
+  
+  
+
+  
+    <a href="/docs/guides/debugging/" class="active">
+      デバッグ &amp; 運用</a>
+  
+
+        </li>
+      
+    
+  </ul>
+
+        </li>
+      
+    
+  </ul>
+
+
+
+
+
+
+
+
+
+
+
+
+
+</nav>
+
+
+
+
+  <script>(function(){var e=document.querySelector("aside .book-menu-content");addEventListener("beforeunload",function(){localStorage.setItem("menu.scrollTop",e.scrollTop)}),e.scrollTop=localStorage.getItem("menu.scrollTop")})()</script>
+
+
+
+  </div>
+</aside>
+ 
+
+    <div class="book-page">
+      <header class="book-header hidden">
+        
+  <div class="flex align-center justify-between">
+  <label for="menu-control">
+    <img src="/icons/menu.svg" class="book-icon" alt="Menu" />
+  </label>
+
+  <h3>デバッグ &amp; 運用</h3>
+
+  <label for="toc-control">
+    
+    <img src="/icons/toc.svg" class="book-icon" alt="Table of Contents" />
+    
+  </label>
+</div>
+
+
+  
+  <aside class="hidden">
+    
+  
+<nav id="TableOfContents">
+  <ul>
+    <li><a href="#1-ログと-hud">1. ログと HUD</a></li>
+    <li><a href="#2-テスト駆動のすすめ">2. テスト駆動のすすめ</a></li>
+    <li><a href="#3-典型的なトラブルシュート">3. 典型的なトラブルシュート</a></li>
+    <li><a href="#4-将来の拡張ポイント">4. 将来の拡張ポイント</a></li>
+    <li><a href="#5-推奨コマンド">5. 推奨コマンド</a></li>
+  </ul>
+</nav>
+
+
+
+  </aside>
+  
+ 
+      </header>
+
+      
+      
+  <article class="markdown book-article"><p>エンジンを拡張する際に役立つ検証フローとチェックリストです。</p>
+<h2 id="1-ログと-hud">1. ログと HUD<a class="anchor" href="#1-%e3%83%ad%e3%82%b0%e3%81%a8-hud">#</a></h2>
+<ul>
+<li><code>Game.update</code> は <code>__DEV__</code> 時に <code>dt</code> をログ出力します。大量に出る場合は <code>expo start --no-dev</code> で実機挙動を確認。</li>
+<li><code>Game.onRender</code> から受け取る <code>GameRenderPayload</code> を HUD 表示し、<code>elapsed</code> / <code>tick</code> / <code>entities.length</code> をリアルタイムに監視。<code>components/game-canvas.tsx</code> の <code>functionLogs</code> 実装を流用できます。</li>
+</ul>
+<h2 id="2-テスト駆動のすすめ">2. テスト駆動のすすめ<a class="anchor" href="#2-%e3%83%86%e3%82%b9%e3%83%88%e9%a7%86%e5%8b%95%e3%81%ae%e3%81%99%e3%81%99%e3%82%81">#</a></h2>
+<ul>
+<li><code>World</code> と <code>Entity</code> は純粋な TypeScript クラスなので Jest で単体テスト可能。</li>
+<li><code>Scheduler</code> は <code>update(dt)</code> を段階的に呼び、<code>task.callback</code> が発火するかで検証できます。<code>getTaskCount()</code> を監視すればリーク検知が容易です。</li>
+</ul>
+<h2 id="3-典型的なトラブルシュート">3. 典型的なトラブルシュート<a class="anchor" href="#3-%e5%85%b8%e5%9e%8b%e7%9a%84%e3%81%aa%e3%83%88%e3%83%a9%e3%83%96%e3%83%ab%e3%82%b7%e3%83%a5%e3%83%bc%e3%83%88">#</a></h2>
+<table>
+  <thead>
+      <tr>
+          <th>症状</th>
+          <th>対処</th>
+      </tr>
+  </thead>
+  <tbody>
+      <tr>
+          <td>Entity が停止する</td>
+          <td><code>tickRate</code> が大きすぎて <code>_process</code> が呼ばれていない可能性。<code>__DEV__</code> ログで <code>dt</code> を確認。</td>
+      </tr>
+      <tr>
+          <td>Renderer に反映されない</td>
+          <td><code>getSnapshot()</code> で必要なフィールドを返しているか確認。<code>GameCanvas</code> 側で型ガードを追加。</td>
+      </tr>
+      <tr>
+          <td>Scheduler タスクが残り続ける</td>
+          <td><code>game.cancelTask(id)</code> を <code>useEffect</code> のクリーンアップで呼ぶ。</td>
+      </tr>
+      <tr>
+          <td>複数画面で Game を共有したい</td>
+          <td><code>useGameStore</code> の <code>game</code> インスタンスをシングルトンとして取り回し、各画面で <code>onRender</code> を個別登録。</td>
+      </tr>
+  </tbody>
+</table>
+<h2 id="4-将来の拡張ポイント">4. 将来の拡張ポイント<a class="anchor" href="#4-%e5%b0%86%e6%9d%a5%e3%81%ae%e6%8b%a1%e5%bc%b5%e3%83%9d%e3%82%a4%e3%83%b3%e3%83%88">#</a></h2>
+<p><code>docs/game_engine_develop_plan.md</code> に記載されている Step #4 以降（タップ入力、Signal、Sprite 切替など）は現行アーキテクチャを前提としています。API 変更時は互換性を保つため、Hugo ドキュメント内の該当章も更新してください。</p>
+<h2 id="5-推奨コマンド">5. 推奨コマンド<a class="anchor" href="#5-%e6%8e%a8%e5%a5%a8%e3%82%b3%e3%83%9e%e3%83%b3%e3%83%89">#</a></h2>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span><span style="color:#75715e"># Expo プロジェクトで lint</span>
+</span></span><span style="display:flex;"><span>npm run lint
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># Hugo ドキュメントのローカルプレビュー</span>
+</span></span><span style="display:flex;"><span>cd codigrowa-doc
+</span></span><span style="display:flex;"><span>hugo server --buildDrafts --disableFastRender</span></span></code></pre></div><p>ドキュメントと実装をセットで更新し、他のエンジニアが <code>codigrowa-doc</code> を見るだけでエンジンを扱える状態を維持しましょう。</p>
+</article>
+ 
+      
+
+      <footer class="book-footer">
+        
+  <div class="flex flex-wrap justify-between">
+
+<div>
+
+</div>
+
+<div>
+
+</div>
+
+</div>
+
+
+
+
+
+  
+  
+  
+  <div class="flex flex-wrap justify-between">
+    <span>
+    
+      <a href="/docs/guides/new-entity/" class="flex align-center">
+        <img src="/icons/backward.svg" class="book-icon" alt="Backward" />
+        <span>Entity 実装ガイド</span>
+      </a>
+    
+    </span>
+    <span>
+    
+    </span>
+  </div>
+  
+
+
+ 
+        
+  
+  <div class="book-comments">
+
+</div>
+  
+ 
+        
+        
+  
+ 
+        
+  
+  
+    <script>(function(){document.querySelectorAll("pre:has(code)").forEach(e=>{e.addEventListener("click",e.focus),e.addEventListener("copy",function(t){if(t.preventDefault(),navigator.clipboard){const t=window.getSelection().toString()||e.textContent;navigator.clipboard.writeText(t)}})})})()</script>
+  
+
+      </footer>
+
+      <label for="menu-control" class="hidden book-menu-overlay"></label>
+    </div>
+
+    
+  
+  <aside class="book-toc">
+    <div class="book-toc-content">
+      
+  
+<nav id="TableOfContents">
+  <ul>
+    <li><a href="#1-ログと-hud">1. ログと HUD</a></li>
+    <li><a href="#2-テスト駆動のすすめ">2. テスト駆動のすすめ</a></li>
+    <li><a href="#3-典型的なトラブルシュート">3. 典型的なトラブルシュート</a></li>
+    <li><a href="#4-将来の拡張ポイント">4. 将来の拡張ポイント</a></li>
+    <li><a href="#5-推奨コマンド">5. 推奨コマンド</a></li>
+  </ul>
+</nav>
+
+
+
+    </div>
+  </aside>
+  
+ 
+  </main>
+
+  
+</body>
+</html>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
