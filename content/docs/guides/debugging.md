@@ -35,7 +35,7 @@ weight: 20
 npm run lint
 
 # Hugo ドキュメントのローカルプレビュー
-hugo server --buildDrafts --disableFastRender
+hugo server -D
 ```
 
 ドキュメントと実装をセットで更新し、他のエンジニアが本リポジトリ（`codigrowa-doc`）を見るだけでエンジンを扱える状態を維持しましょう。

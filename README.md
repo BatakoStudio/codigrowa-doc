@@ -1,4 +1,4 @@
-# Codigrowa Docs（Hugo サイト）
+# Codigrowa Docs
 
 このリポジトリ（`codigrowa-doc`）は Codigrowa のゲームエンジン／教材制作フローを公開用にまとめる Hugo 製ドキュメントサイトです。アプリ本体リポジトリ（例: [BatakoStudio/codigrowa](https://github.com/BatakoStudio/codigrowa)）で策定した仕様・ガイドラインを、閲覧しやすい形に再編して配信します。
 
@@ -6,19 +6,27 @@
 
 - [Hugo Extended](https://gohugo.io/getting-started/installing/) v0.121 以上（Book テーマが SCSS を利用するため Extended 版が必須）
 - Node.js / npm（`themes/book` の依存取得やルートリポジトリとの一貫性のため推奨）
+- **初回セットアップ手順**: クローン直後に必ず Book テーマ（`themes/book`）を取得してください。環境構築時に一度だけ次のコマンドを実行します。
+
+  ```bash
+  git submodule update --init --recursive
+  ```
 
 > macOS なら `brew install hugo` で Extended 版が入ります。既に Hugo をインストール済みの場合は `hugo version` で Extended かどうかを確認してください。
 
 ## ローカルプレビュー
 
 ```bash
-hugo server --buildDrafts --buildFuture --disableFastRender --navigateToChanged \
-  --bind 0.0.0.0 --baseURL http://localhost:1313/
+hugo server -D
 ```
 
 - `http://localhost:1313/` にプレビューが立ち上がります。
-- `--navigateToChanged` を付けているので修正したページへ自動でジャンプします。
-- 公開前の情報は `draft: true` のままでも表示されるため、PR では `draft` を戻し忘れないよう注意してください。
+- `-D` を付けているため、`draft: true` の記事も含めて確認できます（公開前に `draft` を外すのを忘れずに）。
+- ポートやバインドアドレスを変えたい場合は追加フラグを渡します。
+
+  ```bash
+  hugo server -D --bind 0.0.0.0 --port 1314
+  ```
 
 ## 本番ビルド
 
@@ -44,7 +52,11 @@ hugo --minify
 ## 執筆フロー
 
 1. **Markdown を作成**
-   `hugo new docs/runtime/world-entity.md` のように `hugo new` を使うと Front Matter を含んだ雛形ができます。
+   `hugo new` を使うと Front Matter を含んだ雛形ができます。
+
+   ```bash
+   hugo new docs/runtime/world-entity.md
+   ```
 
 2. **Front Matter を設定**
    `title`（表示名）と `weight`（章内の並び順）は必須です。必要に応じて `description` や `tags` を付けます。
@@ -67,12 +79,3 @@ hugo --minify
 
 5. **PR / レビュー**
    Codigrowa アプリ本体の `docs/` （仕様の一次情報源）に差分がある場合はそちらも更新し、Hugo 版との整合性を維持してください。
-
-## 運用メモ
-
-- `public/` と `resources/` はビルド生成物です。手作業で編集しないでください。
-- Book テーマ（`themes/book`）は Git サブモジュールで管理しています。クローン後は `git submodule update --init --recursive` を忘れずに実行してください。
-- サイト右上の “Edit this page” ボタンは `hugo.toml` の `BookRepo` / `BookEditPath` を参照します。別ブランチで作業するときはリンク切れにならないよう注意してください。
-- 英語版を追加する場合は `i18n/` と `content/<lang>/` を増やす構成を想定しています（現在は `languageCode = ja-jp` のみ）。
-
-この README に沿って手順を踏めば、ローカルでのプレビューから公開用ビルドまで一貫して行えます。質問や改善案があれば root リポジトリの Issue / Discussion で共有してください。
