@@ -1,4 +1,4 @@
-# Hugo build artifacts
-public/
-resources/
 .hugo_build.lock
+/assets/jsconfig.json
+/public/
+/resources/_gen/
