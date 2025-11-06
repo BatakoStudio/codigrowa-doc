@@ -1,0 +1,78 @@
+# Codigrowa Docs（Hugo サイト）
+
+`codigrowa-doc/` はゲームエンジン／教材制作フローを公開用にまとめる Hugo 製ドキュメントサイトです。内部の Markdown は [`docs/`](../docs/README.md) で管理している一次ドキュメントをベースに、閲覧しやすい構成に再編しています。
+
+## 必要環境
+
+- [Hugo Extended](https://gohugo.io/getting-started/installing/) v0.121 以上（Book テーマが SCSS を利用するため Extended 版が必須）
+- Node.js / npm（`themes/book` の依存取得やルートリポジトリとの一貫性のため推奨）
+
+> macOS なら `brew install hugo` で Extended 版が入ります。既に Hugo をインストール済みの場合は `hugo version` で Extended かどうかを確認してください。
+
+## ローカルプレビュー
+
+```bash
+hugo server --buildDrafts --buildFuture --disableFastRender --navigateToChanged \
+  --bind 0.0.0.0 --baseURL http://localhost:1313/
+```
+
+- `http://localhost:1313/` にプレビューが立ち上がります。
+- `--navigateToChanged` を付けているので修正したページへ自動でジャンプします。
+- 公開前の情報は `draft: true` のままでも表示されるため、PR では `draft` を戻し忘れないよう注意してください。
+
+## 本番ビルド
+
+```bash
+hugo --minify
+```
+
+- 出力は `codigrowa-doc/public/` 以下に生成されます（リポジトリにコミットするのはビルド済みファイルではなく Markdown です）。
+- CI / ホスティングへ渡す場合もこのコマンドで作った成果物をアップロードします。
+
+## ディレクトリ構成
+
+| パス | 役割 |
+| --- | --- |
+| `content/_index.md` | トップページ。サイト全体のリード文。 |
+| `content/docs/runtime/` | Game / Scheduler / World / Entity などランタイム層の仕様解説。 |
+| `content/docs/rendering/` | `components/game-canvas.tsx` などレンダリング層の実装ガイド。 |
+| `content/docs/guides/` | Entity の追加手順やデバッグ方法など How-To 集。 |
+| `static/` | 画像や添付ファイル。ビルド時にルートへコピーされます。 |
+| `assets/` | Book テーマの上書き用 SCSS/JS。テーマの見た目を調整する場合に使用。 |
+| `layouts/` | テンプレートのカスタマイズ。必要になったら `themes/book/layouts` からコピーして修正します。 |
+
+## 執筆フロー
+
+1. **Markdown を作成**
+   `hugo new docs/runtime/world-entity.md` のように `hugo new` を使うと Front Matter を含んだ雛形ができます。
+
+2. **Front Matter を設定**
+   `title`（表示名）と `weight`（章内の並び順）は必須です。必要に応じて `description` や `tags` を付けます。
+
+   ```yaml
+   ---
+   title: World / Entity
+   weight: 30
+   description: World と Entity 連携の責務分離
+   tags: ["engine", "runtime"]
+   draft: true
+   ---
+   ```
+
+3. **章（セクション）を追加したい場合**
+   ディレクトリ直下に `_index.md` を置き、`weight` を設定するとサイドバーに表示されます。例: `content/docs/runtime/_index.md`。
+
+4. **プレビューで確認**
+   `hugo server` を起動したまま保存すると自動リロードされます。図版が必要な場合は `static/img/<topic>/` に配置し、Markdown から `/img/<topic>/foo.png` で参照してください。
+
+5. **PR / レビュー**
+   ルートリポジトリの `docs/` が一次情報源なので、重大な仕様変更は `docs/` 側も更新し、Hugo 版と差分が出ないようにします。
+
+## 運用メモ
+
+- `public/` と `resources/` はビルド生成物です。手作業で編集しないでください。
+- Book テーマの Git サブモジュールは使っていません。`themes/book` を直接配置しているため、テーマ更新時は GitHub の最新版を手動で取り込んでください。
+- サイト右上の “Edit this page” ボタンは `hugo.toml` の `BookRepo` / `BookEditPath` を参照します。別ブランチで作業するときはリンク切れにならないよう注意してください。
+- 英語版を追加する場合は `i18n/` と `content/<lang>/` を増やす構成を想定しています（現在は `languageCode = ja-jp` のみ）。
+
+この README に沿って手順を踏めば、ローカルでのプレビューから公開用ビルドまで一貫して行えます。質問や改善案があれば root リポジトリの Issue / Discussion で共有してください。
