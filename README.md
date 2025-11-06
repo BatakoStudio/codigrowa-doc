@@ -1,6 +1,6 @@
 # Codigrowa Docs（Hugo サイト）
 
-`codigrowa-doc/` はゲームエンジン／教材制作フローを公開用にまとめる Hugo 製ドキュメントサイトです。内部の Markdown は [`docs/`](../docs/README.md) で管理している一次ドキュメントをベースに、閲覧しやすい構成に再編しています。
+このリポジトリ（`codigrowa-doc`）は Codigrowa のゲームエンジン／教材制作フローを公開用にまとめる Hugo 製ドキュメントサイトです。アプリ本体リポジトリ（例: [BatakoStudio/codigrowa](https://github.com/BatakoStudio/codigrowa)）で策定した仕様・ガイドラインを、閲覧しやすい形に再編して配信します。
 
 ## 必要環境
 
@@ -26,7 +26,7 @@ hugo server --buildDrafts --buildFuture --disableFastRender --navigateToChanged 
 hugo --minify
 ```
 
-- 出力は `codigrowa-doc/public/` 以下に生成されます（リポジトリにコミットするのはビルド済みファイルではなく Markdown です）。
+- 出力は `public/` 以下に生成されます（コミット対象は Markdown やテンプレートのみで、ビルド済みファイルは含めません）。
 - CI / ホスティングへ渡す場合もこのコマンドで作った成果物をアップロードします。
 
 ## ディレクトリ構成
@@ -66,12 +66,12 @@ hugo --minify
    `hugo server` を起動したまま保存すると自動リロードされます。図版が必要な場合は `static/img/<topic>/` に配置し、Markdown から `/img/<topic>/foo.png` で参照してください。
 
 5. **PR / レビュー**
-   ルートリポジトリの `docs/` が一次情報源なので、重大な仕様変更は `docs/` 側も更新し、Hugo 版と差分が出ないようにします。
+   Codigrowa アプリ本体の `docs/` （仕様の一次情報源）に差分がある場合はそちらも更新し、Hugo 版との整合性を維持してください。
 
 ## 運用メモ
 
 - `public/` と `resources/` はビルド生成物です。手作業で編集しないでください。
-- Book テーマの Git サブモジュールは使っていません。`themes/book` を直接配置しているため、テーマ更新時は GitHub の最新版を手動で取り込んでください。
+- Book テーマ（`themes/book`）は Git サブモジュールで管理しています。クローン後は `git submodule update --init --recursive` を忘れずに実行してください。
 - サイト右上の “Edit this page” ボタンは `hugo.toml` の `BookRepo` / `BookEditPath` を参照します。別ブランチで作業するときはリンク切れにならないよう注意してください。
 - 英語版を追加する場合は `i18n/` と `content/<lang>/` を増やす構成を想定しています（現在は `languageCode = ja-jp` のみ）。
 
