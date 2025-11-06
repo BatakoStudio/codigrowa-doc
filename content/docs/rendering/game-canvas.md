@@ -34,6 +34,15 @@ Zustand ストアの `entities` を `Canvas` に流し込むことで、UI 層�
 - 描画に必要な情報は `getSnapshot()` の戻り値へ追加する。例: `width`, `height`, `color`。
 - UI スレッドから World を直接触らず、描画で使う値はすべてスナップショットから取得する。
 
+### SharedValue で描画を安定化
+
+Expo SDK 54 時点の `@shopify/react-native-skia` では `useValue` 系フックが廃止されているため、`react-native-reanimated` の `useSharedValue` をそのまま Skia に渡す方式へ移行しました。
+
+- Entity ごとに `useSharedValue` で `x`, `y`, `width`, `height`, `color`, `tapBounds` などを保持するハンドルを作成。
+- `game.onRender()` で得たスナップショットをハンドルに流し込み、`.value` を更新しても React の再レンダーは発生しません（Skia が SharedValue を直接参照する）。
+- React 側は 4 tick ごとの強制再描画 (`SKIA_PRESENT_INTERVAL`) で HUD テキストだけ更新し、Canvas ノードは常に再利用します。
+- `useSharedValue` で管理していれば、Dev Client / 本番ビルドに関係なく滑らかでクラッシュしにくい描画を維持できます。
+
 ## 応用: 別 Renderer への差し替え
 
 同じ `Game.onRender()` を WebGL や Three.js など別のレンダラへ接続しても問題ありません。`Game` はレンダラ非依存なので、**1 つの Game インスタンスを複数 Renderer が購読する** 構成も可能です（HUD + Canvas など）。
