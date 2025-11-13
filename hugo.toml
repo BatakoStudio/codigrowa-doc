@@ -1,4 +1,4 @@
-baseURL = 'https://codigrowa-docs.local/'
+baseURL = 'https://codigrowa.batako.net/'
 languageCode = 'ja-jp'
 title = 'Codigrowa Docs'
 defaultContentLanguage = 'ja'
